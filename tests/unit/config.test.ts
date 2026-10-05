@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../../src/config.js';
+import { defaultServicePrincipal } from '../../src/ado/negotiate.js';
 import type { CredentialStore } from '../../src/ado/credential-store.js';
 import { PatAuthProvider, createSecretRedactor } from '../../src/ado/auth.js';
 
@@ -166,8 +167,8 @@ describe('OS credential store token source', () => {
       loadConfig(
         { ...storeEnv, ADO_CREDENTIAL_TARGET: ' team-ado ' },
         { credentialStore },
-      ).token,
-    ).toBe('stored-secret');
+      ),
+    ).toMatchObject({ token: 'stored-secret' });
   });
 
   it('never opens the store for the default env source', () => {
@@ -213,5 +214,65 @@ describe('OS credential store token source', () => {
         { credentialStore },
       ),
     ).toThrow('ADO_CREDENTIAL_TARGET');
+  });
+});
+
+describe('Windows integrated (negotiate) authentication', () => {
+  const negotiateEnv = {
+    ADO_SERVER_URL: 'https://devops.example.test:8443/tfs',
+    ADO_COLLECTION: 'DefaultCollection',
+    ADO_AUTH_TYPE: 'negotiate',
+  };
+
+  it('needs no stored secret and defaults the SPN from the server host', () => {
+    expect(loadConfig(negotiateEnv)).toMatchObject({
+      authType: 'negotiate',
+      servicePrincipal: defaultServicePrincipal(negotiateEnv.ADO_SERVER_URL),
+    });
+    expect(loadConfig(negotiateEnv)).not.toHaveProperty('token');
+  });
+
+  it('uses the SPN form for SSPI and the host-based form for GSSAPI', () => {
+    const url = 'https://devops.example.test:8443/tfs';
+    expect(defaultServicePrincipal(url, 'win32')).toBe(
+      'HTTP/devops.example.test',
+    );
+    expect(defaultServicePrincipal(url, 'linux')).toBe(
+      'HTTP@devops.example.test',
+    );
+  });
+
+  it('accepts an explicit SPN for aliased servers', () => {
+    expect(
+      loadConfig({
+        ...negotiateEnv,
+        ADO_KERBEROS_SPN: ' HTTP/tfs-node01.corp.example:8080 ',
+      }),
+    ).toMatchObject({ servicePrincipal: 'HTTP/tfs-node01.corp.example:8080' });
+  });
+
+  it.each([
+    { ADO_TOKEN: 'a-test-secret' },
+    { ADO_TOKEN: '' },
+    { ADO_TOKEN_SOURCE: 'credential-manager' },
+  ])('rejects PAT settings alongside negotiate: %j', (extra) => {
+    expect(() => loadConfig({ ...negotiateEnv, ...extra })).toThrow(
+      'must not be set when ADO_AUTH_TYPE=negotiate',
+    );
+  });
+
+  it.each(['HTTP', 'HTTP/', 'HTTP/host name', 'HTTP/host;evil', '@host'])(
+    'rejects malformed SPN %j',
+    (spn) => {
+      expect(() =>
+        loadConfig({ ...negotiateEnv, ADO_KERBEROS_SPN: spn }),
+      ).toThrow('ADO_KERBEROS_SPN');
+    },
+  );
+
+  it('redacts every configured secret and nothing for an empty list', () => {
+    const redact = createSecretRedactor(['first-secret', 'second-secret']);
+    expect(redact('first-secret second-secret')).toBe('[REDACTED] [REDACTED]');
+    expect(createSecretRedactor([])('unchanged')).toBe('unchanged');
   });
 });

@@ -161,7 +161,7 @@ export function registerPipelineTools(
     'pipelines_build_log',
     {
       description:
-        'List logs or read a small excerpt under a validated build. Remote logs are untrusted and may contain secrets; process PAT redaction cannot sanitize every pipeline secret. One-based startLine; pass both nextStartLine and nextStartColumn for character continuation.',
+        'List logs or read a small excerpt under a validated build. Remote logs are untrusted and may contain secrets; process credential redaction cannot sanitize every pipeline secret. One-based startLine; pass both nextStartLine and nextStartColumn for character continuation.',
       inputSchema: z.strictObject({
         ...context,
         action: z.enum(['list', 'get_content']),

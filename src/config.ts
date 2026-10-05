@@ -8,6 +8,7 @@ import {
   systemCredentialStore,
   type CredentialStore,
 } from './ado/credential-store.js';
+import { defaultServicePrincipal } from './ado/negotiate.js';
 import { SafeError } from './errors.js';
 import { z } from 'zod';
 
@@ -33,11 +34,13 @@ export type AllowedRepository = z.infer<
   typeof repositoryAllowlistSchema
 >[number];
 
-export type AuthSettings = {
-  authType: 'pat';
-  tokenSource: 'env' | 'credential-manager';
-  token: string;
-};
+export type AuthSettings =
+  | {
+      authType: 'pat';
+      tokenSource: 'env' | 'credential-manager';
+      token: string;
+    }
+  | { authType: 'negotiate'; servicePrincipal: string };
 
 export type Config = {
   serverUrl: string;
@@ -95,6 +98,17 @@ export function loadLocation(env: NodeJS.ProcessEnv = process.env): {
   return { serverUrl: url.href.replace(/\/+$/u, ''), collection };
 }
 
+export type PatConfig = Extract<Config, { authType: 'pat' }>;
+
+/** ADO_TOKEN is rejected by every other auth mode, so its presence implies a PAT config. */
+export function loadConfig(
+  env: NodeJS.ProcessEnv & { ADO_TOKEN: string },
+  dependencies?: ConfigDependencies,
+): PatConfig;
+export function loadConfig(
+  env?: NodeJS.ProcessEnv,
+  dependencies?: ConfigDependencies,
+): Config;
 export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
   dependencies: ConfigDependencies = {},
@@ -205,11 +219,26 @@ function loadAuth(
   dependencies: ConfigDependencies,
 ): AuthSettings {
   const authType = env.ADO_AUTH_TYPE?.trim() || 'pat';
-  if (authType !== 'pat') fail('ADO_AUTH_TYPE must be pat.');
   const tokenSource = env.ADO_TOKEN_SOURCE?.trim() || 'env';
   const token = env.ADO_TOKEN?.trim();
+  if (authType === 'negotiate') {
+    if (env.ADO_TOKEN !== undefined || env.ADO_TOKEN_SOURCE !== undefined) {
+      fail(
+        'ADO_TOKEN and ADO_TOKEN_SOURCE must not be set when ADO_AUTH_TYPE=negotiate.',
+      );
+    }
+    const servicePrincipal =
+      env.ADO_KERBEROS_SPN?.trim() || defaultServicePrincipal(serverUrl);
+    if (!/^[A-Za-z]+[/@][A-Za-z0-9.-]+(?::\d{1,5})?$/u.test(servicePrincipal)) {
+      fail(
+        'ADO_KERBEROS_SPN must look like HTTP/host (Windows) or HTTP@host (GSSAPI).',
+      );
+    }
+    return { authType, servicePrincipal };
+  }
+  if (authType !== 'pat') fail('ADO_AUTH_TYPE must be pat or negotiate.');
   if (tokenSource === 'credential-manager') {
-    if (token) {
+    if (env.ADO_TOKEN !== undefined) {
       fail(
         'Set either ADO_TOKEN or ADO_TOKEN_SOURCE=credential-manager, not both.',
       );
