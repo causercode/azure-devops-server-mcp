@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { createSecretRedactor } from '../dist/ado/auth.js';
+import { authSecrets, createSecretRedactor } from '../dist/ado/auth.js';
 import { loadConfig } from '../dist/config.js';
 import { SafeError } from '../dist/errors.js';
 
@@ -19,7 +19,7 @@ try {
     );
   }
   const config = loadConfig();
-  redact = createSecretRedactor(config.token);
+  redact = createSecretRedactor(authSecrets(config));
   const entry = config.allowedRepositories?.[0];
   if (!entry) {
     throw new SafeError(
@@ -118,6 +118,7 @@ try {
           passed: true,
           readOnly: true,
           connected: diagnostics.connected,
+          authType: diagnostics.authType,
           apiVersion: diagnostics.apiVersion,
           reportedProductVersion: diagnostics.reportedProductVersion,
           repositoryAccess: diagnostics.repositoryAccess,

@@ -166,7 +166,7 @@ export function registerWorkItemTools(
     'wit_work_item_comment_write',
     {
       description:
-        'Add a comment as the PAT identity to an authorized work item. No author spoofing or comment deletion/editing; inspect comments after an uncertain outcome.',
+        'Add a comment as the authenticated identity to an authorized work item. No author spoofing or comment deletion/editing; inspect comments after an uncertain outcome.',
       inputSchema: z.strictObject({
         action: z.literal('add'),
         project: projectInput,

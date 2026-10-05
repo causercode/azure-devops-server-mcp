@@ -63,6 +63,7 @@ describe('read-only workplace connection check', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       passed: true,
       readOnly: true,
+      authType: 'pat',
       writePermissionsTested: false,
       repository: {
         id: repository.id,

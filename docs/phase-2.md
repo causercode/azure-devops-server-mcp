@@ -4,6 +4,8 @@ PR review requires no work-item adoption. Keep the original repository allowlist
 
 ## Permissions and compatibility
 
+PAT scopes apply only to PAT authentication. With `ADO_AUTH_TYPE=negotiate` the full identity applies, so the process-owned lists below are the only narrowing.
+
 | Capability                                    | Process authorization                                               | Minimum PAT scopes                                                      |
 | --------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Repository/PR/file/discussion reads           | Original repository allowlist semantics                             | Code Read; Project and Team Read for discovery                          |
@@ -83,7 +85,7 @@ Create with `wit_work_item_write/create`, `type`, and a `fields` map containing 
 
 Maps accept 1–30 primitive string/number/boolean/null values, strings up to 4000 characters. Updates use JSON Patch with mandatory `test /rev`. Protected project/ID/revision/type/history/audit fields cannot change, and area/iteration paths must remain in the selected project. Raw patches, project moves, rule bypass, delete/type changes and batch writes are excluded. `null` is a field value, not removal; process rules determine acceptance. See [Microsoft’s update API](https://learn.microsoft.com/en-us/rest/api/azure/devops/wit/work-items/update?view=azure-devops-rest-7.1).
 
-`wit_work_item/list_comments` takes `id`, `top` and optional server `continuationToken`. `wit_work_item_comment_write/add` takes `id`, non-empty `text` (maximum 4000), authored as the PAT identity. Editing/deletion are excluded. Inspect comments after an uncertain write.
+`wit_work_item/list_comments` takes `id`, `top` and optional server `continuationToken`. `wit_work_item_comment_write/add` takes `id`, non-empty `text` (maximum 4000), authored as the authenticated identity. Editing/deletion are excluded. Inspect comments after an uncertain write.
 
 ## Saved queries and bounded WIQL
 

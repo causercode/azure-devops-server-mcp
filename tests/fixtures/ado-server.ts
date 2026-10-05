@@ -39,6 +39,7 @@ export class MockAdoServer {
   projectsStatus = 200;
   projectDelayMs = 0;
   writeStatus = 201;
+  acceptedAuthorization = `Basic ${Buffer.from(`:${token}`).toString('base64')}`;
   readonly #server: Server;
   baseUrl = '';
   phase2Handler?: (
@@ -64,10 +65,7 @@ export class MockAdoServer {
         response.statusCode = status;
         response.end(JSON.stringify(data));
       };
-      if (
-        entry.authorization !==
-        `Basic ${Buffer.from(`:${token}`).toString('base64')}`
-      ) {
+      if (entry.authorization !== this.acceptedAuthorization) {
         send(401, { message: 'Invalid auth' });
         return;
       }

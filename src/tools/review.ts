@@ -52,7 +52,7 @@ export function registerReviewTools(
     'core_identity',
     {
       description:
-        'Search active people or resolve an explicit identity ID for reviewer assignment in an authorized repository. Search returns candidates without choosing among them; verify account/domain/mail and pass an explicit ID. Requires Identity Read PAT access; no group assignment.',
+        'Search active people or resolve an explicit identity ID for reviewer assignment in an authorized repository. Search returns candidates without choosing among them; verify account/domain/mail and pass an explicit ID. Requires Identity Read access (a PAT scope when using a PAT); no group assignment.',
       inputSchema: z.strictObject({
         action: z.enum(['search', 'get']),
         project: projectInput,

@@ -123,6 +123,26 @@ Confirm the agent identifies the correct project/repository from local Git, chec
 
 Run the core prompt from each MCP client you plan to claim as supported. Protocol compatibility tests alone do not demonstrate the actual client setup or agent behavior.
 
+## Authentication validation
+
+The automated lab runner uses `ADO_TOKEN`. The following additional checks were recorded on 2026-10-05 using Windows build 26100 and Node 24.11.1. Workplace identifiers and credentials are omitted.
+
+| Check                                         | Recorded result                                                                                                                                          | What it establishes                                                                                     |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Windows Kerberos prerequisites                | Domain sign-in, TGT, default HTTP SPN ticket acquisition, and native binding passed                                                                      | The client can obtain a service ticket without an SPN override                                          |
+| Kerberos live MCP stdio check, REST 7.0       | `passed: true`, `readOnly: true`; configured auth type verified as `negotiate`; approved repository discovery/read, branch listing and PR listing passed | End-to-end read authentication against one workplace server and one allowed repository                  |
+| Native Windows Credential Manager smoke check | CLI set/status/clear, configuration credential retrieval, and missing-credential rejection passed; no dummy value printed; test entry removed            | Native Windows storage and CLI lifecycle using a disposable synthetic value; no ADO traffic or real PAT |
+| Offline checks on Windows                     | Formatting, typecheck, build, and all 312 tests passed                                                                                                   | Existing fixture coverage; distinct from live authentication acceptance                                 |
+
+The workplace server release/build was not supplied, and the response did not report a product version. REST 7.0 acceptance does not identify the server release. The Kerberos check made GET requests only; no PR, work item, comment or build was created or changed. An empty PR page passed but does not establish access to existing PR contents.
+
+Live credential-store PAT authentication against ADO, Kerberos writes, interactive coding-client Kerberos registration, and native macOS/Linux authentication remain unverified. The successful read check is not a security audit or proof of every authorization boundary. Offline tests separately cover failure paths and process-owned authorization.
+
+To extend the evidence:
+
+- **Credential store PAT.** Run `node .\dist\index.js auth set-token` with the lab's `ADO_SERVER_URL`/`ADO_COLLECTION`, remove `ADO_TOKEN`, set `ADO_TOKEN_SOURCE=credential-manager`, and run `scripts/check-connection.mjs`. Confirm `auth status` reports the entry, `auth clear-token` removes it, and startup then fails with a hint to run `auth set-token`. A workgroup lab can run this check.
+- **Kerberos (`ADO_AUTH_TYPE=negotiate`).** Requires a domain-joined client and a server with a registered HTTP SPN; a workgroup lab can only confirm the NTLM refusal (`NEGOTIATE_NTLM_UNSUPPORTED`, no request sent). Follow the read-only [Kerberos validation guide](kerberos-validation.md) against a real server.
+
 ## Record evidence
 
 ```text
@@ -138,6 +158,7 @@ PR read/list/filter/pagination: pass/fail
 Title/description/draft updates: pass/fail
 Rejected unsafe inputs: pass/fail
 Credential-safe failures: pass/fail
+Auth mode (env PAT / credential store / negotiate): pass/fail
 Known limitations:
 ```
 

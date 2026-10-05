@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { loadConfig } from '../dist/config.js';
-import { createSecretRedactor } from '../dist/ado/auth.js';
+import { authSecrets, createSecretRedactor } from '../dist/ado/auth.js';
 
 // Write-capable, loopback-only acceptance. Branch creation/setup stays outside MCP.
 let client;
@@ -23,7 +23,7 @@ async function report(passed, error) {
 }
 try {
   const config = loadConfig();
-  redact = createSecretRedactor(config.token);
+  redact = createSecretRedactor(authSecrets(config));
   assert.ok(
     ['localhost', '127.0.0.1', '[::1]'].includes(
       new URL(config.serverUrl).hostname,
@@ -72,10 +72,11 @@ try {
     const result = await client.callTool({ name, arguments: args });
     const serialized = JSON.stringify(result);
     assert.ok(
-      !serialized.includes(config.token) &&
-        !serialized.includes(
-          Buffer.from(`:${config.token}`).toString('base64'),
-        ),
+      authSecrets(config).every(
+        (secret) =>
+          !serialized.includes(secret) &&
+          !serialized.includes(Buffer.from(`:${secret}`).toString('base64')),
+      ),
       'A credential appeared in a tool response.',
     );
     const data =

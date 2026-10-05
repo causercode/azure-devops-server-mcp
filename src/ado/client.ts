@@ -235,8 +235,8 @@ function httpError(
 ): SafeError {
   const hints: Record<number, string> = {
     400: 'Azure DevOps rejected the request. Check the arguments and configured API version.',
-    401: 'Authentication failed. Check the PAT and its expiry.',
-    403: 'Access denied. Check PAT scopes and project/repository permissions.',
+    401: 'Authentication failed. Check the PAT and its expiry, or for negotiate the Kerberos ticket and server SPN.',
+    403: 'Access denied. Check PAT scopes (if used) and project/repository permissions.',
     404: 'Resource not found or not visible to this identity. Check collection, project, repository, and permissions.',
     409: 'The operation conflicts with existing state. Read the current resource and revision before trying again.',
     412: 'The resource changed since it was read. Read its current revision before trying again.',

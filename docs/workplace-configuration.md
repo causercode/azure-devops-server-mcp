@@ -14,7 +14,7 @@ Before connecting at work, collect:
 
 1. **Collection URL.** From a repository web URL like `https://devops.example.com/tfs/DefaultCollection/SharedProject/_git/MyRepo`, the server root is `https://devops.example.com/tfs`, collection is `DefaultCollection`, project is `SharedProject`, and repository is `MyRepo`. Installations can have another virtual-directory path or none at all.
 2. **Server version/update/build.** Check Help/About in the web UI. Record the exact build if shown; API acceptance alone does not establish the server release.
-3. **Authentication.** Check whether User settings → Personal access tokens is available. For this MVP, the process needs a PAT; successful Windows browser sign-in alone does not verify PAT authentication.
+3. **Authentication.** Check whether User settings → Personal access tokens is available. If it is, use a PAT, preferably stored with `auth set-token` (see [Authentication options](../README.md#authentication-options)). If PATs are disabled, `ADO_AUTH_TYPE=negotiate` can use Windows sign-in, but only via Kerberos: a successful browser sign-in may have used NTLM and does not prove Kerberos works.
 4. **Permissions.** Confirm that your identity can read repositories/branches and create/edit PRs. PAT scopes cannot exceed the identity's repository permissions. No merge or administrative permissions are needed for the MCP tools.
 5. **Network/TLS.** Note whether access requires VPN and whether the server's certificate is issued by an internal CA. Node may need the CA configured separately from Windows/browser trust.
 6. **Branch conventions.** Record the actual target branch, such as `develop`, `main`, or a release branch, and whether your source branch must first be pushed to the server.

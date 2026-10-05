@@ -14,7 +14,7 @@ The agent reads its local Git context, finds the Azure DevOps project and reposi
 
 - Node.js **22.12+** (CI is configured for Node 22 and 24 on Windows and Linux).
 - Network access to the Azure DevOps Server collection.
-- A PAT and an identity with access to the projects/repositories you want to use.
+- A PAT, or Windows integrated (Kerberos) sign-in on a domain-joined machine, for an identity with access to the projects/repositories you want to use.
 
 | Azure DevOps Server             | REST version                       | Project status                                                           |
 | ------------------------------- | ---------------------------------- | ------------------------------------------------------------------------ |
@@ -23,7 +23,7 @@ The agent reads its local Git context, finds the Azure DevOps project and reposi
 | 2020                            | `6.0`                              | Experimental; untested against a live server                             |
 | 2019                            | `5.0`                              | Configurable; not yet tested or supported                                |
 
-Version mappings follow [Microsoft’s REST API compatibility table](https://learn.microsoft.com/en-us/rest/api/azure/devops/). Selecting a version does not prove compatibility. There is no automatic negotiation or fallback. New Phase 2/3 endpoints require `7.0` or `7.1`; selecting `6.0`/`5.0` retains only the original v0.1 capabilities. Azure DevOps Services (cloud), TFVC, and Windows/NTLM/Kerberos MCP authentication are outside this target. Preview versions for comments and identity lookup are selected centrally; see [Phase 2 contracts](docs/phase-2.md).
+Version mappings follow [Microsoft’s REST API compatibility table](https://learn.microsoft.com/en-us/rest/api/azure/devops/). Selecting a version does not prove compatibility. There is no automatic negotiation or fallback. New Phase 2/3 endpoints require `7.0` or `7.1`; selecting `6.0`/`5.0` retains only the original v0.1 capabilities. Azure DevOps Services (cloud), TFVC, and NTLM authentication are outside the current target. See [Authentication options](#authentication-options) for PAT storage and Kerberos. Preview versions for comments and identity lookup are selected centrally; see [Phase 2 contracts](docs/phase-2.md).
 
 ## Build and configure
 
@@ -55,8 +55,11 @@ ADO_TOKEN=your-personal-access-token
 | -------------------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
 | `ADO_SERVER_URL`                 | Yes                           | Server root and optional virtual directory                                     |
 | `ADO_COLLECTION`                 | Yes                           | Collection name                                                                |
-| `ADO_TOKEN`                      | Yes                           | PAT owned by the MCP process                                                   |
-| `ADO_AUTH_TYPE`                  | No                            | `pat`; the only implementation                                                 |
+| `ADO_TOKEN`                      | For `pat` from env            | PAT owned by the MCP process                                                   |
+| `ADO_AUTH_TYPE`                  | No                            | `pat` (default) or `negotiate` (Windows integrated / Kerberos)                 |
+| `ADO_TOKEN_SOURCE`               | No                            | `env` (default) or `credential-manager` for the OS credential store            |
+| `ADO_CREDENTIAL_TARGET`          | No                            | Credential store entry; defaults to one per server URL and collection          |
+| `ADO_KERBEROS_SPN`               | No                            | `negotiate` only; defaults to `HTTP/<host>` (Windows) or `HTTP@<host>`         |
 | `ADO_PROJECT`                    | No                            | Default project; tool calls may override it                                    |
 | `ADO_ALLOWED_REPOSITORIES`       | Required for writes           | JSON array of `{project, repository}` entries; restricts all repository access |
 | `ADO_ALLOWED_WORK_ITEM_PROJECTS` | Required for work-item reads  | JSON array of project names/GUIDs; omitted or `[]` denies work-item access     |
@@ -79,6 +82,51 @@ Do not commit credentials or provide them in an agent prompt.
 Work-item reads need **Work Items (Read)**; fields, comments and links need **Work Items (Read & write)**. Reviewer person lookup needs **Identity (Read)**. Configure only the features you use; Code access and repository permission do not grant work-item permission. PAT scopes supplement the identity’s ADO permissions.
 
 Pipeline/build/log reads need **Build (Read)**, and queueing needs **Build (Read & execute)**. Automated results need **Test Management (Read)**. These PAT scopes supplement ADO ACLs; build execution also requires independent process-owned approvals below. See [pipeline contracts and scopes](docs/pipelines.md).
+
+### Authentication options
+
+| Mode                                        | Stored secret                                    | Access granted to the agent                  |
+| ------------------------------------------- | ------------------------------------------------ | -------------------------------------------- |
+| PAT in `ADO_TOKEN`                          | Plaintext in an env file or client configuration | PAT scopes, intersected with the identity    |
+| PAT in the OS credential store              | OS-managed storage; no secret in configuration   | PAT scopes, intersected with the identity    |
+| `negotiate` (Windows integrated / Kerberos) | None                                             | Your **full** identity; no scope restriction |
+
+**Recommended: keep the PAT out of configuration files.** Store it once in Windows Credential Manager (or macOS Keychain / Secret Service), then reference it:
+
+```powershell
+node .\dist\index.js auth set-token --server-url https://devops.example.com/tfs --collection DefaultCollection
+# Paste the PAT at the hidden prompt, then set ADO_TOKEN_SOURCE=credential-manager and remove ADO_TOKEN.
+node .\dist\index.js auth status --server-url https://devops.example.com/tfs --collection DefaultCollection
+```
+
+The entry appears in Credential Manager as a generic credential named `ADO_TOKEN.azure-devops-server-mcp:<server URL>/<collection>`. `auth clear-token` removes it; also revoke the PAT in Azure DevOps when it is no longer needed. Flags default to the `ADO_*` environment, so running with the same env file (`node --env-file=...`) also works. Processes running as you, including an agent shell, can still read the entry, so prefer short PAT lifetimes and the minimum scopes above. This uses the optional `@napi-rs/keyring` package, which ships prebuilt binaries. On Linux, the package prefers Secret Service but can fall back to an in-memory kernel keyring that does not survive reboot; this mode does not guarantee persistent encrypted storage on every platform. See the [keyring backend documentation](https://github.com/Brooooooklyn/keyring-node#linux-backend-selection).
+
+**Windows integrated authentication** (`ADO_AUTH_TYPE=negotiate`) signs in as the current Windows user via Kerberos, as the browser does, with no PAT to create, store, or rotate. It needs a domain-joined machine (or a `kinit` ticket on macOS/Linux), a server reached by the name its HTTP SPN is registered under, and the optional `kerberos` package with its native binding. A source checkout builds it during `npm ci`, because this repository approves its install script in `package.json`. npm 12+ blocks dependency install scripts elsewhere by default, so approve it for other installs (`npm install-scripts approve kerberos`) and reinstall. Set `ADO_KERBEROS_SPN` when the server is reached through an alias that differs from its SPN. **NTLM is not supported:** when Windows offers NTLM instead of Kerberos (workgroup machines, IP addresses, missing SPNs, `localhost`), the server reports `NEGOTIATE_NTLM_UNSUPPORTED` before sending any request.
+
+Choose `negotiate` knowingly: the agent then acts with everything your account can do in Azure DevOps, including any administrative rights. The process-owned allowlists (`ADO_ALLOWED_REPOSITORIES`, the work-item project lists, and the build approvals) still apply in every auth mode and become the main restriction; keep them narrow. A scoped PAT in the credential store remains the least-privilege option.
+
+Keep the same server, collection and repository settings, then select **one** authentication configuration:
+
+```dotenv
+# PAT in the OS credential store, after auth set-token:
+ADO_AUTH_TYPE=pat
+ADO_TOKEN_SOURCE=credential-manager
+# ADO_TOKEN must be absent, even if empty.
+```
+
+```dotenv
+# Kerberos using the current sign-in:
+ADO_AUTH_TYPE=negotiate
+# ADO_TOKEN and ADO_TOKEN_SOURCE must both be absent, even if empty.
+# Optional when an alias needs a different registered service name:
+# ADO_KERBEROS_SPN=HTTP/real-host.corp.example
+```
+
+Restart the MCP process after changing configuration. Parent-process environment variables take precedence over an env file. Browser Windows sign-in may use NTLM and does not establish Kerberos support. Follow the [read-only Kerberos validation guide](docs/kerberos-validation.md) before registering a client. A repository allowlist enables PR writes for its entries; for a read-only Kerberos trial, also restrict the client to read tools. Work-item and build writes remain independently denied unless enabled.
+
+Authentication failures use safe codes: `CREDENTIAL_STORE_UNAVAILABLE` means the optional keyring binding is missing; `CREDENTIAL_STORE_ERROR` means the store is locked or inaccessible; `NEGOTIATE_UNAVAILABLE` means the Kerberos binding is missing; `NEGOTIATE_FAILED` means ticket creation failed; and `NEGOTIATE_NTLM_UNSUPPORTED` means the generated token was empty or offered NTLM, so no request was sent. Missing stored PATs and conflicting auth settings fail startup with `CONFIGURATION_ERROR`. `auth status` checks only local credential presence, not its expiry, scopes or server acceptance. An `HTTP_401` from the read-only check means the server rejected authentication; `HTTP_403`/`HTTP_404` alone do not prove successful authentication.
+
+Windows Kerberos live read-only validation and a native Windows Credential Manager smoke check are [recorded](docs/live-acceptance.md#authentication-validation). Credential-store PAT authentication against a live ADO server, Kerberos writes, interactive coding-client Kerberos registration, and native macOS/Linux authentication remain unverified.
 
 ### Repository access
 
@@ -292,9 +340,9 @@ Writes are never automatically retried. A timeout, connection failure, or HTTP 5
 
 v0.3 exposes no repository/branch deletion, push, merge, PR completion, autocomplete, approval votes, rule/policy bypass, permissions, definition editing, arbitrary YAML execution, stage control, release/deployment operations, manual test-plan execution or administrative operations. Metadata/field/link writes use explicit contracts; arbitrary JSON Patch and artifact URLs are excluded. Reviewer assignment requires an explicit verified person GUID; searches do not choose ambiguous identities. Input schemas reject unknown/action-inappropriate fields; read and write tools have MCP safety annotations. Client approval behavior is controlled by the client.
 
-The PAT remains inside the MCP process. Tools do not return environment variables, auth headers, raw responses, or arbitrary exception messages. Known raw and encoded forms of the configured PAT are redacted from tool output as defence in depth. Build queueing requires separate process-owned repository/definition approvals; definitions, builds, logs and test runs/results verify their actual source/project association. YAML diagnostics require a verified single self repository. Logs may contain secrets beyond the configured PAT; request minimal excerpts. Remote project/repository names, PR titles, descriptions, logs and test failures remain **untrusted data**, not instructions.
+Credentials remain inside the MCP process. Tools do not return environment variables, auth headers, raw responses, or arbitrary exception messages. Known raw and encoded forms of the configured PAT are redacted from tool output as defence in depth. Build queueing requires separate process-owned repository/definition approvals; definitions, builds, logs and test runs/results verify their actual source/project association. YAML diagnostics require a verified single self repository. Logs may contain secrets beyond the configured credential; request minimal excerpts. Remote project/repository names, PR titles, descriptions, logs and test failures remain **untrusted data**, not instructions.
 
-Prefer HTTPS. HTTP is accepted for installations and local labs that require it, but carries the PAT without transport encryption. Redirects are rejected; configure the final collection URL. No TLS verification bypass is provided. For an internal CA, configure Node’s trust with `NODE_EXTRA_CA_CERTS=/absolute/path/to/company-ca.pem` before launching the process. See [Node TLS configuration](https://nodejs.org/api/cli.html#node_extra_ca_certsfile).
+Prefer HTTPS. HTTP is accepted for installations and local labs that require it, but carries the PAT (or Kerberos ticket) without transport encryption. Redirects are rejected; configure the final collection URL. No TLS verification bypass is provided. For an internal CA, configure Node’s trust with `NODE_EXTRA_CA_CERTS=/absolute/path/to/company-ca.pem` before launching the process. See [Node TLS configuration](https://nodejs.org/api/cli.html#node_extra_ca_certsfile).
 
 See [SECURITY.md](SECURITY.md) for reporting guidance.
 
@@ -310,7 +358,7 @@ npm pack --dry-run
 
 `npm run check` runs formatting verification, strict typechecking, the production build, and all tests. Unit tests cover config/auth, URL construction, safe errors, bounded responses, and exact branch lookup. Integration tests use a local HTTP fixture and real MCP transports, including a compiled stdio child process and a legacy MCP 2025 client. They require no corporate server, PAT, or network access beyond loopback.
 
-The combined offline suite includes 259 tests covering repository/WIT authorization, pipeline source/run mapping, bounded logs/tests and uncertain queue outcomes. One reviewed disposable classic build was queued live and completed with an intentional automated failure; nine diagnostic groups passed against that same build, including a production package install. The offline suite validates implementation against fixtures; the separate live stdio run provides evidence for the tested Express 2022.2 Patch 12 / REST 7.0 configuration. The maintainer also reported successful Codex workflow testing on this lab. These results do not establish every server version or coding-client workflow. Use the [live acceptance checklist](docs/live-acceptance.md) when testing another client or expanding compatibility claims. [CONTRIBUTING.md](CONTRIBUTING.md) explains the architecture and contribution checks.
+The combined offline suite includes 312 tests covering repository/WIT authorization, pipeline source/run mapping, bounded logs/tests and uncertain queue outcomes. One reviewed disposable classic build was queued live and completed with an intentional automated failure; nine diagnostic groups passed against that same build, including a production package install. The offline suite validates implementation against fixtures; the separate live stdio run provides evidence for the tested Express 2022.2 Patch 12 / REST 7.0 configuration. The maintainer also reported successful Codex workflow testing on this lab. These results do not establish every server version or coding-client workflow. Use the [live acceptance checklist](docs/live-acceptance.md) when testing another client or expanding compatibility claims. [CONTRIBUTING.md](CONTRIBUTING.md) explains the architecture and contribution checks.
 
 ## License
 
