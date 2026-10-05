@@ -17,6 +17,56 @@ const jsonResponse = (body: unknown, status = 200) =>
   });
 
 describe('REST client', () => {
+  it('handles a synchronous provider failure without dispatching or reporting an uncertain write', async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    const auth = {
+      getHeaders: () => {
+        throw new Error(config.token);
+      },
+    };
+    const client = new AdoClient({ ...config, timeoutMs: 100 }, auth, fetcher);
+    const failure = client.request(['_apis'], schema, { method: 'POST' });
+    await expect(failure).rejects.toMatchObject({ code: 'CONNECTION_ERROR' });
+    await expect(failure).rejects.not.toHaveProperty(
+      'message',
+      expect.stringContaining(config.token),
+    );
+    await expect(failure).rejects.not.toHaveProperty(
+      'message',
+      expect.stringContaining('write outcome may be unknown'),
+    );
+    // Let the original deadline expire to detect an orphaned abort rejection.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it.each(['GET', 'POST'] as const)(
+    'times out stalled authentication before %s and never dispatches a late ticket',
+    async (method) => {
+      let release: (headers: Record<string, string>) => void = () => {};
+      const pending = new Promise<Record<string, string>>((resolve) => {
+        release = resolve;
+      });
+      const fetcher = vi.fn<typeof fetch>();
+      const auth = {
+        getHeaders: vi.fn(async (_signal?: AbortSignal) => pending),
+      };
+      const client = new AdoClient(
+        { ...config, timeoutMs: 100 },
+        auth,
+        fetcher,
+      );
+      await expect(
+        client.request(['_apis'], schema, { method }),
+      ).rejects.toMatchObject({
+        code: 'TIMEOUT',
+        message: 'Authentication timed out. No HTTP request was sent.',
+      });
+      expect(auth.getHeaders.mock.calls[0]?.[0]?.aborted).toBe(true);
+      release({ Authorization: 'Negotiate late-ticket' });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
   it('reports an unverified write result if a successful response is malformed', async () => {
     const fetcher = vi
       .fn<typeof fetch>()

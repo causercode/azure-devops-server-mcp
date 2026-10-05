@@ -9,6 +9,57 @@ import { MockAdoServer } from '../fixtures/ado-server.js';
 const ticket = Buffer.from([0x60, 0x82, 0x01, 0x02]).toString('base64');
 
 describe('MCP with Windows integrated (negotiate) authentication', () => {
+  it('redacts generated authorization reflected in allowed response metadata and body fields', async () => {
+    await client.close();
+    await server.close();
+    const reflected = new NegotiateAuthProvider('HTTP/devops.example.test', {
+      GSS_MECH_OID_SPNEGO: 6,
+      initializeClient: async () => ({ step: async () => ticket }),
+    });
+    server = createServer(
+      loadConfig({
+        ADO_SERVER_URL: 'https://devops.example.test',
+        ADO_COLLECTION: 'Collection',
+        ADO_AUTH_TYPE: 'negotiate',
+      }),
+      {
+        auth: reflected,
+        fetch: async (_url, options) =>
+          new Response(
+            JSON.stringify({
+              value: [{ id: 'project-id', name: `echo ${ticket}` }],
+            }),
+            {
+              headers: {
+                'content-type': 'application/json',
+                'x-tfs-product-version': (
+                  options?.headers as Record<string, string>
+                ).Authorization!,
+              },
+            },
+          ),
+      },
+    );
+    client = new Client({ name: 'reflected-ticket-test', version: '1' });
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    await server.connect(st);
+    await client.connect(ct);
+    const diagnostics = await client.callTool({
+      name: 'server_info',
+      arguments: {},
+    });
+    expect(diagnostics.isError).not.toBe(true);
+    expect(diagnostics.structuredContent).toMatchObject({
+      reportedProductVersion: '[REDACTED]',
+    });
+    const projects = await client.callTool({
+      name: 'server_info',
+      arguments: { action: 'list_projects' },
+    });
+    expect(projects.isError).not.toBe(true);
+    expect(JSON.stringify(projects)).not.toContain(ticket);
+    expect(JSON.stringify(diagnostics)).not.toContain(ticket);
+  });
   let ado: MockAdoServer;
   let server: McpServer;
   let client: Client;

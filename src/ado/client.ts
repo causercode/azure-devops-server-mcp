@@ -97,11 +97,17 @@ export class AdoClient {
       url.searchParams.set('api-version', version);
     }
     const signal = AbortSignal.timeout(this.config.timeoutMs);
+    let dispatched = false;
     try {
+      // Native ticket acquisition may continue in the background, but a late
+      // credential must never cause an HTTP request after the deadline.
+      const authHeaders = await authenticationHeaders(this.auth, signal);
+      signal.throwIfAborted();
+      dispatched = true;
       const response = await this.fetcher(url, {
         method,
         headers: {
-          ...(await this.auth.getHeaders()),
+          ...authHeaders,
           Accept:
             options.responseType === 'text' ? 'text/plain' : 'application/json',
           ...(options.body === undefined
@@ -202,6 +208,7 @@ export class AdoClient {
       if (error instanceof SafeError) {
         if (
           writes &&
+          dispatched &&
           ['INVALID_RESPONSE', 'RESPONSE_TOO_LARGE'].includes(error.code)
         ) {
           throw new SafeError(
@@ -212,19 +219,42 @@ export class AdoClient {
         }
         throw error;
       }
-      const uncertain = !writes
-        ? ''
-        : ` The write outcome may be unknown; ${recovery}.`;
+      const uncertain =
+        !writes || !dispatched
+          ? ''
+          : ` The write outcome may be unknown; ${recovery}.`;
       if (signal.aborted)
         throw new SafeError(
           'TIMEOUT',
-          `Azure DevOps request timed out.${uncertain}`,
+          dispatched
+            ? `Azure DevOps request timed out.${uncertain}`
+            : 'Authentication timed out. No HTTP request was sent.',
         );
       throw new SafeError(
         'CONNECTION_ERROR',
         `Cannot reach Azure DevOps. Check connectivity, TLS trust, and server configuration.${uncertain}`,
       );
     }
+  }
+}
+
+async function authenticationHeaders(
+  auth: AuthProvider,
+  signal: AbortSignal,
+): Promise<Record<string, string>> {
+  signal.throwIfAborted();
+  let onAbort: () => void = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => auth.getHeaders(signal)),
+      aborted,
+    ]);
+  } finally {
+    signal.removeEventListener('abort', onAbort);
   }
 }
 

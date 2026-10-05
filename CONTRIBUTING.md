@@ -14,6 +14,7 @@ MCP client → stdio → tools → services → ADO REST client → Azure DevOps
 - `src/ado/`: auth providers, central endpoint/version mapping, selected response schemas, and bounded HTTP JSON/text transport. This layer must not import MCP APIs.
 - `src/services/`: repository and independent work-item project authorization, branch/PR checks, review discussions/reviewers, guarded WIQL, revision-checked fields/links, validated pipeline/build source associations, separately authorized queueing, automated test linkage and bounded summaries.
 - `src/tools/`: agent-facing schemas, safety annotations, action dispatch, and safe result/error encoding.
+- `src/prompts/`: strict local workflow guidance; no remote calls or write authorization.
 - `tests/unit/`: configuration, credentials, HTTP boundary, and branch edge cases.
 - `tests/integration/`: local ADO fixture, MCP tool calls, and actual stdio subprocesses.
 
@@ -31,9 +32,11 @@ The source-only `scripts/live-pipelines.mjs` is a separate guarded loopback runn
 
 ## Releases
 
+The source-only `scripts/live-workflows.mjs` validates a two-stage loopback workflow: create/read a disposable ticket, then verify the externally tested/pushed commit, linked draft PR and pinned review. Optional existing-build diagnostics may use a separately configured Build/Test credential at the same server/collection and canonical repository. It never runs Git, queues builds or merges PRs. Keep its checkpoint reports ignored; see [workflow contracts](docs/workflows.md).
+
 Before a source commit, pass `npm run check` and review the Git contents. Local env files, workplace inventories, private client configurations, and live reports must stay out of Git. Use the [workplace quickstart](docs/workplace-quickstart.md) for a read-only first trial. The home lab's PAT and configuration are not transferable to a workplace server.
 
-Before publishing source code to a public GitHub repository, enable private vulnerability reporting and add the actual repository URLs to package metadata. Keep compatibility claims limited to recorded evidence; v0.3 expands features without claiming an interactive Phase 2/3 coding-client workflow.
+Before publishing source code to a public GitHub repository, enable private vulnerability reporting and add the actual repository URLs to package metadata. Keep compatibility claims limited to recorded evidence; stdio acceptance does not establish every coding client's prompt UI or autonomous behavior.
 
 Before tagging a release, complete live acceptance on the primary target including the actual coding-client prompt. Before publishing to npm, also inspect `npm pack --dry-run`, smoke-test the packed runtime, and confirm package name/ownership on npm. Update `package.json` and the compatibility/status documentation. `npm pack`/`npm publish` builds the production package through `prepack`; publication and tagging are maintainer actions.
 
