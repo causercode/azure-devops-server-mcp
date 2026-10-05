@@ -1,4 +1,16 @@
-# Live acceptance: PR review and work items
+# Live acceptance: agent workflows, PR review and work items
+
+## v0.4 recorded workflow
+
+On 2026-10-05, the compiled CLI and actual MCP stdio client passed three preparation groups and ten verification groups on the existing Azure DevOps Server Express 2022.2 Patch 12 / REST 7.0 lab, Windows / Node 24.21.0. An approved disposable ticket was read before local implementation in an isolated Git clone. A small addition module and three node:test cases passed before and after commit; remote branch HEAD matched the exact tested commit.
+
+Verification covered all three workflow prompts, scoped ticket/repository and explicit target, draft PR creation/read-back, reciprocal ticket linking with current revision, pinned changed-file reads, explicit verified reviewer assignment, a retained review discussion, and an unchanged review iteration. Repeated verification inspected/reused the same draft PR/link/discussion without creating duplicates. No PR completion, merge, approval vote or automatic work-item state change ran.
+
+One existing reviewed classic lab definition was queued once at that branch/commit. It completed with its expected intentional automated test failure. Workflow diagnosis verified the source, read bounded timeline/log evidence, and inspected the linked automated run and failed result. The report preserved the failed build outcome. Separate existing work-item and Build/Test PATs were used in separate MCP processes at the same server/collection and canonical repository; no credentials were broadened or minted, definitions edited, or duplicate build queued.
+
+A separate native Windows Credential Manager check stored the existing lab PAT under a unique temporary target, authenticated successfully through the read-only MCP connection check, verified status/clear, then confirmed missing-credential startup rejection. The temporary entry was removed and no PAT was printed. This extends the earlier synthetic storage smoke check to actual live PAT authentication.
+
+Reports, checkout paths, commits, IDs, URLs and identifying lab details remain ignored local artifacts. The reusable [workflow runner](workflows.md#two-stage-local-lab-acceptance) does not execute Git or prove local test execution by itself; that evidence came from the preceding local implementation and test commands. Client-specific prompt-picker UX and autonomous workflow behavior, Kerberos writes, native macOS/Linux authentication, REST 7.1, YAML diagnostics and other server installations remain unverified.
 
 ## v0.2 recorded run
 
@@ -136,7 +148,7 @@ The automated lab runner uses `ADO_TOKEN`. The following additional checks were 
 
 The workplace server release/build was not supplied, and the response did not report a product version. REST 7.0 acceptance does not identify the server release. The Kerberos check made GET requests only; no PR, work item, comment or build was created or changed. An empty PR page passed but does not establish access to existing PR contents.
 
-Live credential-store PAT authentication against ADO, Kerberos writes, interactive coding-client Kerberos registration, and native macOS/Linux authentication remain unverified. The successful read check is not a security audit or proof of every authorization boundary. Offline tests separately cover failure paths and process-owned authorization.
+The later v0.4 Windows lab run above verifies live credential-store PAT authentication. Kerberos writes, interactive coding-client Kerberos registration, and native macOS/Linux authentication remain unverified. The successful read check is not a security audit or proof of every authorization boundary. Offline tests separately cover failure paths and process-owned authorization.
 
 To extend the evidence:
 

@@ -1,6 +1,6 @@
 {
   "name": "azure-devops-server-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "MCP server for self-hosted Azure DevOps Server repositories, PR review, work items, builds and automated test diagnostics.",
   "homepage": "https://github.com/causercode/azure-devops-server-mcp#readme",
   "repository": {
@@ -40,7 +40,8 @@
     "check": "npm run format:check && npm run typecheck && npm test",
     "start": "node dist/index.js",
     "dev": "node --env-file-if-exists=.env --import tsx src/index.ts",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "test:live:workflows": "npm run build && node --env-file-if-exists=.env scripts/live-workflows.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.3.0",

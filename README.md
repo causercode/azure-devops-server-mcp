@@ -8,7 +8,7 @@ The original **From MCP to Pull Request** workflow remains available:
 
 The agent reads its local Git context, finds the Azure DevOps project and repository, and calls this server. The server resolves the repository, verifies both remote branches, creates the PR, and returns its number and browser URL.
 
-**Status:** v0.3 adds repository-scoped pipeline/build diagnostics, bounded logs and automated test failures, plus separately authorized classic build queueing. It includes the v0.2 PR review and independent work-item tools. PR review and build diagnostics work without enabling Boards. [Pipeline acceptance](docs/pipelines.md) and [PR/work-item live stdio acceptance](docs/live-acceptance.md) passed on Azure DevOps Server Express 2022.2 Patch 12 / REST 7.0. The maintainer confirmed the original v0.1 Codex workflow; interactive Phase 2/3 client workflows, Claude Code, YAML live diagnostics, REST 7.1 and other servers remain unverified. This package has not been published to npm. Independently implemented; not affiliated with Microsoft.
+**Status:** v0.4 adds reusable [agent workflow prompts](docs/workflows.md) connecting approved work items, local implementation/tests, pushed commits, linked draft PRs, pinned reviews and matching build diagnostics. Existing v0.2 work-item/review and v0.3 build tools retain their scope boundaries. PR review and build diagnostics work without enabling Boards. [Pipeline acceptance](docs/pipelines.md) and [PR/work-item live stdio acceptance](docs/live-acceptance.md) passed on Azure DevOps Server Express 2022.2 Patch 12 / REST 7.0. The maintainer confirmed the original v0.1 Codex workflow; individual clients' v0.4 prompt-picker and autonomous workflow behavior, Claude Code, YAML live diagnostics, REST 7.1 and other servers remain unverified. This package has not been published to npm. Independently implemented; not affiliated with Microsoft.
 
 ## Requirements and compatibility
 
@@ -126,7 +126,7 @@ Restart the MCP process after changing configuration. Parent-process environment
 
 Authentication failures use safe codes: `CREDENTIAL_STORE_UNAVAILABLE` means the optional keyring binding is missing; `CREDENTIAL_STORE_ERROR` means the store is locked or inaccessible; `NEGOTIATE_UNAVAILABLE` means the Kerberos binding is missing; `NEGOTIATE_FAILED` means ticket creation failed; and `NEGOTIATE_NTLM_UNSUPPORTED` means the generated token was empty or offered NTLM, so no request was sent. Missing stored PATs and conflicting auth settings fail startup with `CONFIGURATION_ERROR`. `auth status` checks only local credential presence, not its expiry, scopes or server acceptance. An `HTTP_401` from the read-only check means the server rejected authentication; `HTTP_403`/`HTTP_404` alone do not prove successful authentication.
 
-Windows Kerberos live read-only validation and a native Windows Credential Manager smoke check are [recorded](docs/live-acceptance.md#authentication-validation). Credential-store PAT authentication against a live ADO server, Kerberos writes, interactive coding-client Kerberos registration, and native macOS/Linux authentication remain unverified.
+Windows Kerberos live read-only validation and a native Windows Credential Manager smoke check are [recorded](docs/live-acceptance.md#authentication-validation). The [v0.4 Windows lab run](docs/live-acceptance.md#v04-recorded-workflow) additionally verified live ADO read authentication using a credential-store PAT. Kerberos writes, interactive coding-client Kerberos registration, and native macOS/Linux authentication remain unverified.
 
 ### Repository access
 
@@ -258,6 +258,8 @@ On Windows, use a path such as `C:/Users/you/code/azure-devops-server-mcp/dist/i
 Keep stdout dedicated to MCP. Startup errors go to stderr. Running `npm start` manually waits for a client on stdin; it does not open a web page. `node dist/index.js --help` and `--version` work without credentials.
 
 ## Tools
+
+For a complete implementation, use the [v0.4 workflow guide](docs/workflows.md). Clients supporting MCP prompts can retrieve `work_item_to_pull_request`, `review_pull_request` and `diagnose_build`; other clients can follow the same sequence with these tools. Prompts make no remote requests and do not grant write permission.
 
 | Tool                                       | Actions                                                                                   | Purpose                                                                      |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |

@@ -74,35 +74,40 @@ export type ToolRunner = (
   operation: () => Promise<unknown>,
 ) => Promise<CallToolResult>;
 
-export function createToolRunner(redact: (text: string) => string): ToolRunner {
-  return async (operation) => {
-    try {
-      const serialized = redact(JSON.stringify(await operation()));
-      return {
-        content: [{ type: 'text', text: serialized }],
-        structuredContent: JSON.parse(serialized),
-      };
-    } catch (error) {
-      const safe =
-        error instanceof SafeError
-          ? {
-              code: error.code,
-              message: error.message,
-              ...(error.status === undefined ? {} : { status: error.status }),
-            }
-          : {
-              code: 'INTERNAL_ERROR',
-              message:
-                'An unexpected internal error occurred. No diagnostic details are exposed to protect credentials.',
-            };
-      const serialized = redact(JSON.stringify({ error: safe }));
-      return {
-        isError: true,
-        content: [{ type: 'text', text: serialized }],
-        structuredContent: JSON.parse(serialized),
-      };
-    }
-  };
+export function createToolRunner(
+  redact: (text: string) => string,
+  scope: <T>(operation: () => Promise<T>) => Promise<T> = (operation) =>
+    operation(),
+): ToolRunner {
+  return (operation) =>
+    scope(async () => {
+      try {
+        const serialized = redact(JSON.stringify(await operation()));
+        return {
+          content: [{ type: 'text', text: serialized }],
+          structuredContent: JSON.parse(serialized),
+        };
+      } catch (error) {
+        const safe =
+          error instanceof SafeError
+            ? {
+                code: error.code,
+                message: error.message,
+                ...(error.status === undefined ? {} : { status: error.status }),
+              }
+            : {
+                code: 'INTERNAL_ERROR',
+                message:
+                  'An unexpected internal error occurred. No diagnostic details are exposed to protect credentials.',
+              };
+        const serialized = redact(JSON.stringify({ error: safe }));
+        return {
+          isError: true,
+          content: [{ type: 'text', text: serialized }],
+          structuredContent: JSON.parse(serialized),
+        };
+      }
+    });
 }
 
 export function required<T>(
