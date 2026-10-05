@@ -64,6 +64,29 @@ describe('shared Phase 2 transport', () => {
       }),
     ).toEqual({ data: undefined });
   });
+  it('accepts an expected empty 200 without content headers but still rejects login pages', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response('<html>login</html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        }),
+      );
+    expect(
+      await rest(fetcher).request(['_apis'], z.unknown(), {
+        method: 'DELETE',
+        allowEmpty: true,
+      }),
+    ).toEqual({ data: undefined });
+    await expect(
+      rest(fetcher).request(['_apis'], z.unknown(), {
+        method: 'DELETE',
+        allowEmpty: true,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' });
+  });
   it.each(['transport', 'http', 'json'])(
     'does not label a read-only POST as a write after %s failure',
     async (kind) => {
@@ -105,16 +128,14 @@ describe('shared Phase 2 transport', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it('reads plain text with bounded streaming, auth and denied redirects', async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response('line one\nline two', {
-          headers: {
-            'content-type': 'text/plain; charset=utf-8',
-            'x-ms-continuationtoken': 'opaque',
-          },
-        }),
-      );
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('line one\nline two', {
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'x-ms-continuationtoken': 'opaque',
+        },
+      }),
+    );
     const response = await rest(fetcher).requestText(['_apis'], {
       maxBytes: 100,
     });
@@ -134,13 +155,11 @@ describe('shared Phase 2 transport', () => {
   it.each(['text/html', 'application/json', 'application/octet-stream'])(
     'rejects unexpected text content type %s',
     async (contentType) => {
-      const fetcher = vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(
-          new Response(config.token, {
-            headers: { 'content-type': contentType },
-          }),
-        );
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(config.token, {
+          headers: { 'content-type': contentType },
+        }),
+      );
       await expect(rest(fetcher).requestText(['_apis'])).rejects.toMatchObject({
         code: 'INVALID_RESPONSE',
       });
@@ -162,14 +181,12 @@ describe('shared Phase 2 transport', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it('does not follow text redirects or expose upstream errors', async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response(config.token, {
-          status: 302,
-          headers: { location: 'https://outside.example.test' },
-        }),
-      );
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(config.token, {
+        status: 302,
+        headers: { location: 'https://outside.example.test' },
+      }),
+    );
     await expect(rest(fetcher).requestText(['_apis'])).rejects.toMatchObject({
       code: 'HTTP_302',
     });

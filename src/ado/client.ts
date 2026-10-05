@@ -127,13 +127,12 @@ export class AdoClient {
         return { data: schema.parse(undefined) };
       }
       const contentType = response.headers.get('content-type') ?? '';
-      if (
-        !(
-          options.responseType === 'text'
-            ? /^text\/plain(?:\s*;|$)/iu
-            : /^application\/(?:[\w.+-]+\+)?json(?:\s*;|$)/iu
-        ).test(contentType)
-      ) {
+      const validContentType = (
+        options.responseType === 'text'
+          ? /^text\/plain(?:\s*;|$)/iu
+          : /^application\/(?:[\w.+-]+\+)?json(?:\s*;|$)/iu
+      ).test(contentType);
+      if (!validContentType && !options.allowEmpty) {
         await response.body?.cancel();
         throw new SafeError(
           'INVALID_RESPONSE',
@@ -141,6 +140,8 @@ export class AdoClient {
         );
       }
       const reader = response.body?.getReader();
+      if (!reader && options.allowEmpty)
+        return { data: schema.parse(undefined) };
       if (!reader)
         throw new SafeError(
           'INVALID_RESPONSE',
@@ -167,6 +168,13 @@ export class AdoClient {
       } finally {
         reader.releaseLock();
       }
+      if (!totalBytes && options.allowEmpty)
+        return { data: schema.parse(undefined) };
+      if (!validContentType)
+        throw new SafeError(
+          'INVALID_RESPONSE',
+          'Azure DevOps returned an unexpected content type. Check the server/collection URL and authentication configuration.',
+        );
       let data: T;
       try {
         const text = Buffer.concat(chunks).toString('utf8');
