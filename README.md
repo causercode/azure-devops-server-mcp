@@ -85,11 +85,11 @@ Pipeline/build/log reads need **Build (Read)**, and queueing needs **Build (Read
 
 ### Authentication options
 
-| Mode                                        | Stored secret                                         | Access granted to the agent                  |
-| ------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- |
-| PAT in `ADO_TOKEN`                          | Plaintext in an env file or client configuration      | PAT scopes, intersected with the identity    |
-| PAT in the OS credential store              | Encrypted at rest for your OS account; no config file | PAT scopes, intersected with the identity    |
-| `negotiate` (Windows integrated / Kerberos) | None                                                  | Your **full** identity; no scope restriction |
+| Mode                                        | Stored secret                                    | Access granted to the agent                  |
+| ------------------------------------------- | ------------------------------------------------ | -------------------------------------------- |
+| PAT in `ADO_TOKEN`                          | Plaintext in an env file or client configuration | PAT scopes, intersected with the identity    |
+| PAT in the OS credential store              | OS-managed storage; no secret in configuration   | PAT scopes, intersected with the identity    |
+| `negotiate` (Windows integrated / Kerberos) | None                                             | Your **full** identity; no scope restriction |
 
 **Recommended: keep the PAT out of configuration files.** Store it once in Windows Credential Manager (or macOS Keychain / Secret Service), then reference it:
 
@@ -99,11 +99,34 @@ node .\dist\index.js auth set-token --server-url https://devops.example.com/tfs 
 node .\dist\index.js auth status --server-url https://devops.example.com/tfs --collection DefaultCollection
 ```
 
-The entry appears in Credential Manager as a generic credential named `ADO_TOKEN.azure-devops-server-mcp:<server URL>/<collection>`. `auth clear-token` removes it; also revoke the PAT in Azure DevOps when it is no longer needed. Flags default to the `ADO_*` environment, so running with the same env file (`node --env-file=...`) also works. Processes running as you, including an agent shell, can still read the entry, so prefer short PAT lifetimes and the minimum scopes above. This uses the optional `@napi-rs/keyring` package, which ships prebuilt binaries.
+The entry appears in Credential Manager as a generic credential named `ADO_TOKEN.azure-devops-server-mcp:<server URL>/<collection>`. `auth clear-token` removes it; also revoke the PAT in Azure DevOps when it is no longer needed. Flags default to the `ADO_*` environment, so running with the same env file (`node --env-file=...`) also works. Processes running as you, including an agent shell, can still read the entry, so prefer short PAT lifetimes and the minimum scopes above. This uses the optional `@napi-rs/keyring` package, which ships prebuilt binaries. On Linux, the package prefers Secret Service but can fall back to an in-memory kernel keyring that does not survive reboot; this mode does not guarantee persistent encrypted storage on every platform. See the [keyring backend documentation](https://github.com/Brooooooklyn/keyring-node#linux-backend-selection).
 
 **Windows integrated authentication** (`ADO_AUTH_TYPE=negotiate`) signs in as the current Windows user via Kerberos, as the browser does, with no PAT to create, store, or rotate. It needs a domain-joined machine (or a `kinit` ticket on macOS/Linux), a server reached by the name its HTTP SPN is registered under, and the optional `kerberos` package with its native binding. A source checkout builds it during `npm ci`, because this repository approves its install script in `package.json`. npm 12+ blocks dependency install scripts elsewhere by default, so approve it for other installs (`npm install-scripts approve kerberos`) and reinstall. Set `ADO_KERBEROS_SPN` when the server is reached through an alias that differs from its SPN. **NTLM is not supported:** when Windows offers NTLM instead of Kerberos (workgroup machines, IP addresses, missing SPNs, `localhost`), the server reports `NEGOTIATE_NTLM_UNSUPPORTED` before sending any request.
 
 Choose `negotiate` knowingly: the agent then acts with everything your account can do in Azure DevOps, including any administrative rights. The process-owned allowlists (`ADO_ALLOWED_REPOSITORIES`, the work-item project lists, and the build approvals) still apply in every auth mode and become the main restriction; keep them narrow. A scoped PAT in the credential store remains the least-privilege option.
+
+Keep the same server, collection and repository settings, then select **one** authentication configuration:
+
+```dotenv
+# PAT in the OS credential store, after auth set-token:
+ADO_AUTH_TYPE=pat
+ADO_TOKEN_SOURCE=credential-manager
+# ADO_TOKEN must be absent, even if empty.
+```
+
+```dotenv
+# Kerberos using the current sign-in:
+ADO_AUTH_TYPE=negotiate
+# ADO_TOKEN and ADO_TOKEN_SOURCE must both be absent, even if empty.
+# Optional when an alias needs a different registered service name:
+# ADO_KERBEROS_SPN=HTTP/real-host.corp.example
+```
+
+Restart the MCP process after changing configuration. Parent-process environment variables take precedence over an env file. Browser Windows sign-in may use NTLM and does not establish Kerberos support. Follow the [read-only Kerberos validation guide](docs/kerberos-validation.md) before registering a client. A repository allowlist enables PR writes for its entries; for a read-only Kerberos trial, also restrict the client to read tools. Work-item and build writes remain independently denied unless enabled.
+
+Authentication failures use safe codes: `CREDENTIAL_STORE_UNAVAILABLE` means the optional keyring binding is missing; `CREDENTIAL_STORE_ERROR` means the store is locked or inaccessible; `NEGOTIATE_UNAVAILABLE` means the Kerberos binding is missing; `NEGOTIATE_FAILED` means ticket creation failed; and `NEGOTIATE_NTLM_UNSUPPORTED` means the generated token was empty or offered NTLM, so no request was sent. Missing stored PATs and conflicting auth settings fail startup with `CONFIGURATION_ERROR`. `auth status` checks only local credential presence, not its expiry, scopes or server acceptance. An `HTTP_401` from the read-only check means the server rejected authentication; `HTTP_403`/`HTTP_404` alone do not prove successful authentication.
+
+Windows Kerberos live read-only validation and a native Windows Credential Manager smoke check are [recorded](docs/live-acceptance.md#authentication-validation). Credential-store PAT authentication against a live ADO server, Kerberos writes, interactive coding-client Kerberos registration, and native macOS/Linux authentication remain unverified.
 
 ### Repository access
 
@@ -335,7 +358,7 @@ npm pack --dry-run
 
 `npm run check` runs formatting verification, strict typechecking, the production build, and all tests. Unit tests cover config/auth, URL construction, safe errors, bounded responses, and exact branch lookup. Integration tests use a local HTTP fixture and real MCP transports, including a compiled stdio child process and a legacy MCP 2025 client. They require no corporate server, PAT, or network access beyond loopback.
 
-The combined offline suite includes 259 tests covering repository/WIT authorization, pipeline source/run mapping, bounded logs/tests and uncertain queue outcomes. One reviewed disposable classic build was queued live and completed with an intentional automated failure; nine diagnostic groups passed against that same build, including a production package install. The offline suite validates implementation against fixtures; the separate live stdio run provides evidence for the tested Express 2022.2 Patch 12 / REST 7.0 configuration. The maintainer also reported successful Codex workflow testing on this lab. These results do not establish every server version or coding-client workflow. Use the [live acceptance checklist](docs/live-acceptance.md) when testing another client or expanding compatibility claims. [CONTRIBUTING.md](CONTRIBUTING.md) explains the architecture and contribution checks.
+The combined offline suite includes 312 tests covering repository/WIT authorization, pipeline source/run mapping, bounded logs/tests and uncertain queue outcomes. One reviewed disposable classic build was queued live and completed with an intentional automated failure; nine diagnostic groups passed against that same build, including a production package install. The offline suite validates implementation against fixtures; the separate live stdio run provides evidence for the tested Express 2022.2 Patch 12 / REST 7.0 configuration. The maintainer also reported successful Codex workflow testing on this lab. These results do not establish every server version or coding-client workflow. Use the [live acceptance checklist](docs/live-acceptance.md) when testing another client or expanding compatibility claims. [CONTRIBUTING.md](CONTRIBUTING.md) explains the architecture and contribution checks.
 
 ## License
 

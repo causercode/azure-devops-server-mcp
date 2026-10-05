@@ -34,7 +34,7 @@ This asks the domain controller for a service ticket. It sends **nothing** to th
 klist get HTTP/devops.example.com
 ```
 
-- **Ticket returned:** the default SPN will work. Continue.
+- **Ticket returned:** the domain controller recognizes the default SPN. Continue to check whether the server accepts the ticket.
 - **Error such as `0x7` (`KDC_ERR_S_PRINCIPAL_UNKNOWN`):** no SPN is registered for that name; the URL is probably an alias (DNS CNAME or load balancer). Try the server's real FQDN, if you know it, with `klist get HTTP/<real-host>`. If that works, set `ADO_KERBEROS_SPN=HTTP/<real-host>` in step 3. If nothing works, Kerberos is not configured for this server. Stop and use the PAT.
 
 ## 3. Create a Kerberos env file
@@ -61,7 +61,7 @@ node --env-file=.env.kerberos.local .\scripts\check-connection.mjs
 
 This makes about five GET requests: diagnostics, one project page, the allowed repository, one branch page and one PR page. It never writes.
 
-**Pass:** `"passed": true`, `"readOnly": true`. Then confirm the server ticket was used:
+**Pass:** `"passed": true`, `"readOnly": true`, `"authType": "negotiate"`. Then confirm the service ticket is cached:
 
 ```powershell
 klist | Select-String 'HTTP/'
@@ -74,8 +74,8 @@ klist | Select-String 'HTTP/'
 | `NEGOTIATE_UNAVAILABLE`      | Native `kerberos` binding missing                        | Repeat step 1's `npm ci`; if it persists, record npm's output                                                                  |
 | `NEGOTIATE_FAILED`           | Windows could not create a ticket                        | Recheck step 0 (`klist`) and the SPN format                                                                                    |
 | `NEGOTIATE_NTLM_UNSUPPORTED` | No Kerberos ticket for that SPN, so Windows offered NTLM | Revisit step 2; nothing was sent to the server                                                                                 |
-| `HTTP_401`                   | The server rejected a valid Kerberos ticket              | Server-side IIS/SPN configuration (e.g. app-pool identity vs. SPN account). Not fixable from the client; stop and use the PAT. |
-| `HTTP_403` / `HTTP_404`      | Authenticated, but your identity lacks access            | Pick a repository you can read in the browser                                                                                  |
+| `HTTP_401`                   | The server rejected authentication                       | Check the final URL and ask the administrator to verify IIS/SPN configuration. Stop rather than repeatedly submitting tickets. |
+| `HTTP_403` / `HTTP_404`      | Access denied, resource missing, or hidden               | Check collection/project/repository and permissions. These statuses alone do not prove successful authentication.              |
 
 ## 5. Optional: one read-only prompt in a coding client
 

@@ -118,6 +118,7 @@ try {
           passed: true,
           readOnly: true,
           connected: diagnostics.connected,
+          authType: diagnostics.authType,
           apiVersion: diagnostics.apiVersion,
           reportedProductVersion: diagnostics.reportedProductVersion,
           repositoryAccess: diagnostics.repositoryAccess,

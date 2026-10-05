@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { runAuthCommand } from '../../src/cli/auth.js';
 import type { CredentialStore } from '../../src/ado/credential-store.js';
 
@@ -29,6 +29,37 @@ function harness(input = '', entries: Record<string, string> = {}) {
 }
 
 describe('auth CLI', () => {
+  it('reads a hidden terminal PAT, handles backspace, and restores terminal mode', async () => {
+    const { io, store, output } = harness();
+    const stdin = Object.assign(new Readable({ read() {} }), {
+      isTTY: true,
+      setRawMode: vi.fn(),
+    });
+    const result = runAuthCommand(['set-token'], { ...io, stdin });
+    stdin.emit('data', `${secret}x\u007f\r`);
+    expect(await result).toBe(0);
+    expect(store.get(target)).toBe(secret);
+    expect(stdin.setRawMode.mock.calls).toEqual([[true], [false]]);
+    expect(stdin.listenerCount('data')).toBe(0);
+    expect(output()).toContain('input hidden');
+    expect(output()).not.toContain(secret);
+  });
+
+  it('restores terminal mode on Ctrl+C without storing or printing the PAT', async () => {
+    const { io, store, output } = harness();
+    const stdin = Object.assign(new Readable({ read() {} }), {
+      isTTY: true,
+      setRawMode: vi.fn(),
+    });
+    const result = runAuthCommand(['set-token'], { ...io, stdin });
+    stdin.emit('data', `${secret}\u0003`);
+    await expect(result).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(store.size).toBe(0);
+    expect(stdin.setRawMode.mock.calls).toEqual([[true], [false]]);
+    expect(stdin.listenerCount('data')).toBe(0);
+    expect(output()).not.toContain(secret);
+  });
+
   it('stores a piped PAT under the server and collection target without printing it', async () => {
     const { io, store, output } = harness(`${secret}\r\n`);
     expect(await runAuthCommand(['set-token'], io)).toBe(0);
