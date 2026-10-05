@@ -24,6 +24,8 @@ Additional commit preparation on 2026-10-04 passed all 117 offline tests on Wind
 
 README registration commands were also checked in isolated temporary profiles using Codex CLI 0.160.0 and Claude Code 2.1.289. Both saved the stdio registration, and Claude's connection check reported Connected using a placeholder PAT and deny-all repository scope. This validates registration and MCP startup, not ADO authentication or an agent's PR workflow; normal user profiles were unchanged.
 
+The [initial GitHub CI run](https://github.com/causercode/azure-devops-server-mcp/actions/runs/37253139399) passed on 2026-10-04 across Ubuntu and Windows with Node 22 and 24. Each of the four jobs completed a clean install, formatting/typechecking/build, all 117 offline tests, and the package dry run. This extends offline platform coverage; it does not establish additional live-server compatibility.
+
 ## Maintainer-reported coding-client run
 
 On 2026-10-04, the maintainer reported that the provided Codex workflow tests passed against this lab and that the returned Azure DevOps PR URL was verified. This is a reported client result, separate from the automated evidence above. Exact versions for that interactive session and a saved transcript were not recorded in this public summary. Workplace validation remains pending. Native client PR tracking is separate from this MCP's verified browser URL.
