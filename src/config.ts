@@ -33,6 +33,8 @@ export interface Config {
   collection: string;
   project?: string;
   allowedRepositories?: readonly AllowedRepository[];
+  buildWriteRepositories?: readonly AllowedRepository[];
+  buildWriteDefinitions?: readonly number[];
   allowedWorkItemProjects?: readonly string[];
   workItemWriteProjects?: readonly string[];
   authType: 'pat';
@@ -107,6 +109,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       );
     }
   }
+  let buildWriteRepositories: AllowedRepository[] = [];
+  let buildWriteDefinitions: number[] = [];
+  try {
+    buildWriteRepositories = repositoryAllowlistSchema.parse(
+      JSON.parse(env.ADO_BUILD_WRITE_REPOSITORIES ?? '[]'),
+    );
+    buildWriteDefinitions = z
+      .array(z.number().int().positive().max(2147483647))
+      .max(100)
+      .parse(JSON.parse(env.ADO_BUILD_WRITE_DEFINITIONS ?? '[]'));
+  } catch {
+    fail(
+      'ADO_BUILD_WRITE_REPOSITORIES must be an array of {project, repository}; ADO_BUILD_WRITE_DEFINITIONS must be an array of positive definition IDs (maximum 100). Both default to [].',
+    );
+  }
   const projectScopes: Partial<Config> = {};
   for (const [variable, property] of [
     ['ADO_ALLOWED_WORK_ITEM_PROJECTS', 'allowedWorkItemProjects'],
@@ -130,6 +147,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     collection,
     ...(project ? { project } : {}),
     ...(allowedRepositories === undefined ? {} : { allowedRepositories }),
+    ...(env.ADO_BUILD_WRITE_REPOSITORIES === undefined
+      ? {}
+      : { buildWriteRepositories }),
+    ...(env.ADO_BUILD_WRITE_DEFINITIONS === undefined
+      ? {}
+      : { buildWriteDefinitions }),
     ...projectScopes,
     authType: 'pat',
     token,

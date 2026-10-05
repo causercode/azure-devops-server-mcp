@@ -29,7 +29,7 @@ assert.ok(
   'Configure the lab PAT in the process environment.',
 );
 const redact = createSecretRedactor(process.env.ADO_TOKEN);
-const client = new Client({ name: 'live-acceptance', version: '0.1.0' });
+const client = new Client({ name: 'live-acceptance', version: '0.3.0' });
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [resolve('dist/index.js')],
@@ -67,8 +67,16 @@ async function call(name, args, expectError = false) {
 
 try {
   await client.connect(transport);
-  assert.equal((await client.listTools()).tools.length, 14);
-  checks.push('Phase 2 tools advertised; v0.1 regression workflow');
+  const names = (await client.listTools()).tools.map((tool) => tool.name);
+  for (const name of [
+    'server_info',
+    'repo_repository',
+    'repo_branch',
+    'repo_pull_request',
+    'repo_pull_request_write',
+  ])
+    assert.ok(names.includes(name));
+  checks.push('original tools advertised');
   const diagnostics = await call('server_info', {});
   assert.equal(diagnostics.connected, true);
   const projects = await call('server_info', {

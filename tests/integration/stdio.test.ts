@@ -88,7 +88,7 @@ describe('published CLI over stdio', () => {
     const client = new Client({ name: 'stdio-test', version: '1.0.0' });
     try {
       await client.connect(transport);
-      expect((await client.listTools()).tools).toHaveLength(14);
+      expect((await client.listTools()).tools).toHaveLength(20);
       const result = await client.callTool({
         name: 'repo_pull_request_write',
         arguments: {

@@ -1,7 +1,7 @@
 {
   "name": "azure-devops-server-mcp",
-  "version": "0.2.0",
-  "description": "MCP server for self-hosted Azure DevOps Server repositories, pull request review, and scoped work items.",
+  "version": "0.3.0",
+  "description": "MCP server for self-hosted Azure DevOps Server repositories, PR review, work items, builds and automated test diagnostics.",
   "homepage": "https://github.com/causercode/azure-devops-server-mcp#readme",
   "repository": {
     "type": "git",
@@ -34,6 +34,7 @@
     "test:watch": "npm run build && vitest",
     "test:live": "npm run build && node --env-file-if-exists=.env scripts/live-acceptance.mjs",
     "test:live:phase2": "npm run build && node --env-file-if-exists=.env scripts/live-acceptance-phase2.mjs",
+    "test:live:pipelines": "npm run build && node --env-file-if-exists=.env scripts/live-pipelines.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run format:check && npm run typecheck && npm test",
