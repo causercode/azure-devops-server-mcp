@@ -123,6 +123,13 @@ Confirm the agent identifies the correct project/repository from local Git, chec
 
 Run the core prompt from each MCP client you plan to claim as supported. Protocol compatibility tests alone do not demonstrate the actual client setup or agent behavior.
 
+## Authentication modes (manual, not yet recorded)
+
+The automated runner uses `ADO_TOKEN`. Check the other modes with the read-only connection check; neither has a recorded live run yet.
+
+- **Credential store PAT.** Run `node .\dist\index.js auth set-token` with the lab's `ADO_SERVER_URL`/`ADO_COLLECTION`, remove `ADO_TOKEN`, set `ADO_TOKEN_SOURCE=credential-manager`, and run `scripts/check-connection.mjs`. Confirm `auth status` reports the entry, `auth clear-token` removes it, and startup then fails with a hint to run `auth set-token`. A workgroup lab can run this check.
+- **Kerberos (`ADO_AUTH_TYPE=negotiate`).** Requires a domain-joined client and a server with a registered HTTP SPN; a workgroup lab cannot run it. Remove `ADO_TOKEN`, set `ADO_AUTH_TYPE=negotiate` (plus `ADO_KERBEROS_SPN` for aliased hostnames), and run the connection check. `server_info` must report `authType: "negotiate"`. Afterwards, `klist` should list an `HTTP/<server>` ticket. Pointing at the server by IP address should fail with `NEGOTIATE_NTLM_UNSUPPORTED` and no request in the IIS log.
+
 ## Record evidence
 
 ```text
@@ -138,6 +145,7 @@ PR read/list/filter/pagination: pass/fail
 Title/description/draft updates: pass/fail
 Rejected unsafe inputs: pass/fail
 Credential-safe failures: pass/fail
+Auth mode (env PAT / credential store / negotiate): pass/fail
 Known limitations:
 ```
 

@@ -45,6 +45,8 @@ Replace both fictional GUIDs with the actual project and repository IDs. Initial
 
 For the first check, create a PAT scoped to **Code (Read)** and **Project and Team (Read)**. Browser Windows sign-in is separate from PAT authentication. Use REST 7.0 for Server 2022, 6.0 for experimental Server 2020, or 5.0 for untested Server 2019; do not interpret a successful request as proof of every tool's compatibility.
 
+To keep the PAT out of the file entirely, run `node --env-file=.env.work.local .\dist\index.js auth set-token`, paste the PAT at the hidden prompt, then replace the `ADO_TOKEN` line with `ADO_TOKEN_SOURCE=credential-manager`. See [Authentication options](../README.md#authentication-options), which also covers Windows integrated sign-in if your server disables PATs.
+
 The file is ignored by Git. Treat it as a credential file and keep it private. Environment variables already set by the parent process take precedence over Node's env file; clear stale `ADO_*` values or use a fresh terminal before switching between servers. For a company CA, obtain an approved PEM file and add `NODE_EXTRA_CA_CERTS=C:/path/to/company-ca.pem`. Keep certificate verification enabled.
 
 ## 4. Run the read-only connection check

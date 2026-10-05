@@ -4,7 +4,7 @@ These tools help diagnose CI failures without adopting Boards. They use Azure De
 
 ## Permissions and source boundaries
 
-Use Code Read, Project and Team Read, Build Read (`vso.build`) and Test Management Read (`vso.test`) for diagnostics. Queueing needs Build Read & execute (`vso.build_execute`). PAT scopes and server ACLs both apply. See the [Build API](https://learn.microsoft.com/en-us/rest/api/azure/devops/build/builds/queue?view=azure-devops-rest-7.1) and [Test API](https://learn.microsoft.com/en-us/rest/api/azure/devops/test/results/list?view=azure-devops-rest-7.1).
+Use Code Read, Project and Team Read, Build Read (`vso.build`) and Test Management Read (`vso.test`) for diagnostics. Queueing needs Build Read & execute (`vso.build_execute`). PAT scopes and server ACLs both apply; with `ADO_AUTH_TYPE=negotiate` only server ACLs and the process-owned approvals below apply. See the [Build API](https://learn.microsoft.com/en-us/rest/api/azure/devops/build/builds/queue?view=azure-devops-rest-7.1) and [Test API](https://learn.microsoft.com/en-us/rest/api/azure/devops/test/results/list?view=azure-devops-rest-7.1).
 
 `ADO_ALLOWED_REPOSITORIES` restricts all pipeline/build/log/test reads when configured. Every tool selects a repository by name or GUID and an optional project; `ADO_PROJECT` supplies the default. Definition and build IDs are checked against their actual project and TfsGit repository. Logs and timelines are read only under a validated build. Automated runs must belong to that build and project; each result must belong to the validated run and project.
 

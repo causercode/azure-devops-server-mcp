@@ -46,6 +46,8 @@ ADO_TOKEN=your-local-lab-PAT
 ADO_API_VERSION=7.0
 ```
 
+A workgroup lab cannot exercise `ADO_AUTH_TYPE=negotiate`: without a domain, Windows offers NTLM, which this server refuses. It can exercise `ADO_TOKEN_SOURCE=credential-manager`.
+
 The URL above is an example, not a promised installer default. Local HTTP avoids initial certificate setup but sends the credential without encryption; keep this lab local or configure HTTPS.
 
 Start with `7.0` to exercise the v0.1 default. Server 2022.2 can also use `7.1`; [Microsoft’s version mapping](https://learn.microsoft.com/en-us/rest/api/azure/devops/) says newer server releases support APIs from earlier mapped releases. Repeat with `7.1` if you want to validate both versions.
