@@ -11,7 +11,7 @@ export function isApiVersion(value: string): value is ApiVersion {
   return ['7.0', '7.1', '6.0', '5.0'].includes(value);
 }
 
-export type Endpoint = 'phase2' | 'workItemComments' | 'identities';
+export type Endpoint = 'phase2' | 'phase3' | 'workItemComments' | 'identities';
 export function endpointVersion(
   version: ApiVersion,
   endpoint: Endpoint,

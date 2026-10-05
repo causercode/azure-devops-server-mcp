@@ -13,7 +13,7 @@ async function main() {
   }
   if (args.length === 1 && args[0] === '--help') {
     process.stdout.write(
-      `${SERVER_NAME} ${SERVER_VERSION}\n\nRuns an MCP server over stdio. Configure ADO_SERVER_URL, ADO_COLLECTION, and ADO_TOKEN.\nPR writes require ADO_ALLOWED_REPOSITORIES, a JSON array of {project, repository} entries. When configured, it restricts reads and writes.\nOptional: ADO_PROJECT, ADO_AUTH_TYPE=pat, ADO_API_VERSION=7.0, ADO_TIMEOUT_MS=30000.\nSee README.md for client setup.\n`,
+      `${SERVER_NAME} ${SERVER_VERSION}\n\nRuns an MCP server over stdio. Configure ADO_SERVER_URL, ADO_COLLECTION, and ADO_TOKEN.\nPR writes require ADO_ALLOWED_REPOSITORIES, a JSON array of {project, repository} entries. When configured, it restricts reads and writes.\nWork-item reads/writes separately require ADO_ALLOWED_WORK_ITEM_PROJECTS/ADO_WORK_ITEM_WRITE_PROJECTS; both default deny-all.\nBuild queueing also requires ADO_BUILD_WRITE_REPOSITORIES and ADO_BUILD_WRITE_DEFINITIONS; both default deny-all.\nPhase 2/3 tools require REST 7.0 or 7.1.\nOptional: ADO_PROJECT, ADO_AUTH_TYPE=pat, ADO_API_VERSION=7.0, ADO_TIMEOUT_MS=30000.\nSee README.md, docs/phase-2.md and docs/pipelines.md for client setup and execution boundaries.\n`,
     );
     return;
   }

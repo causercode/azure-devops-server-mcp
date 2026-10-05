@@ -93,7 +93,24 @@ try {
       );
     return data;
   }
-  assert.equal((await client.listTools()).tools.length, 14);
+  const toolNames = (await client.listTools()).tools.map((tool) => tool.name);
+  for (const name of [
+    'core_identity',
+    'repo_branch',
+    'repo_file',
+    'repo_pull_request',
+    'repo_pull_request_thread',
+    'repo_pull_request_thread_write',
+    'repo_pull_request_write',
+    'repo_repository',
+    'server_info',
+    'wit_query',
+    'wit_work_item',
+    'wit_work_item_comment_write',
+    'wit_work_item_link_write',
+    'wit_work_item_write',
+  ])
+    assert.ok(toolNames.includes(name));
   await call('server_info', { action: 'get' });
   const resolved = await call('repo_repository', {
     action: 'get',

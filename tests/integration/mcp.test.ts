@@ -77,10 +77,15 @@ describe('MCP to Azure DevOps HTTP integration', () => {
     title: 'Improve search caching',
   };
 
-  it('advertises the Phase 2 tools with read/write annotations and strict inputs', async () => {
+  it('advertises the combined Phase 2 and Phase 3 tools with read/write annotations and strict inputs', async () => {
     const result = await client.listTools();
     expect(result.tools.map((tool) => tool.name).sort()).toEqual([
       'core_identity',
+      'pipelines_build',
+      'pipelines_build_log',
+      'pipelines_definition',
+      'pipelines_run',
+      'pipelines_write',
       'repo_branch',
       'repo_file',
       'repo_pull_request',
@@ -89,6 +94,7 @@ describe('MCP to Azure DevOps HTTP integration', () => {
       'repo_pull_request_write',
       'repo_repository',
       'server_info',
+      'testplan_show_test_results_from_build_id',
       'wit_query',
       'wit_work_item',
       'wit_work_item_comment_write',
