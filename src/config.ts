@@ -3,6 +3,11 @@ import {
   isApiVersion,
   type ApiVersion,
 } from './ado/api-version.js';
+import {
+  defaultCredentialTarget,
+  systemCredentialStore,
+  type CredentialStore,
+} from './ado/credential-store.js';
 import { SafeError } from './errors.js';
 import { z } from 'zod';
 
@@ -28,7 +33,13 @@ export type AllowedRepository = z.infer<
   typeof repositoryAllowlistSchema
 >[number];
 
-export interface Config {
+export type AuthSettings = {
+  authType: 'pat';
+  tokenSource: 'env' | 'credential-manager';
+  token: string;
+};
+
+export type Config = {
   serverUrl: string;
   collection: string;
   project?: string;
@@ -37,17 +48,23 @@ export interface Config {
   buildWriteDefinitions?: readonly number[];
   allowedWorkItemProjects?: readonly string[];
   workItemWriteProjects?: readonly string[];
-  authType: 'pat';
-  token: string;
   apiVersion: ApiVersion;
   timeoutMs: number;
+} & AuthSettings;
+
+export interface ConfigDependencies {
+  credentialStore?: () => CredentialStore;
 }
 
 function fail(message: string): never {
   throw new SafeError('CONFIGURATION_ERROR', message);
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+/** Server root and collection, shared by the MCP server and the auth CLI. */
+export function loadLocation(env: NodeJS.ProcessEnv = process.env): {
+  serverUrl: string;
+  collection: string;
+} {
   const rawUrl = env.ADO_SERVER_URL?.trim();
   if (!rawUrl) fail('ADO_SERVER_URL is required.');
   let url: URL;
@@ -75,14 +92,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   ) {
     fail('ADO_COLLECTION is required and must be a single collection name.');
   }
-  const authType = env.ADO_AUTH_TYPE?.trim() || 'pat';
-  if (authType !== 'pat') fail('ADO_AUTH_TYPE must be pat.');
-  const token = env.ADO_TOKEN?.trim();
-  if (!token || /[\u0000-\u0020\u007f]/u.test(token)) {
-    fail(
-      'ADO_TOKEN is required and must not contain whitespace or control characters.',
-    );
-  }
+  return { serverUrl: url.href.replace(/\/+$/u, ''), collection };
+}
+
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  dependencies: ConfigDependencies = {},
+): Config {
+  const { serverUrl, collection } = loadLocation(env);
+  const auth = loadAuth(env, serverUrl, collection, dependencies);
   const apiVersion = env.ADO_API_VERSION?.trim() || API_VERSIONS['2022'];
   if (!isApiVersion(apiVersion))
     fail('ADO_API_VERSION must be 7.0, 7.1, 6.0, or 5.0.');
@@ -143,7 +161,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
   }
   return {
-    serverUrl: url.href.replace(/\/+$/u, ''),
+    serverUrl,
     collection,
     ...(project ? { project } : {}),
     ...(allowedRepositories === undefined ? {} : { allowedRepositories }),
@@ -154,9 +172,64 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       ? {}
       : { buildWriteDefinitions }),
     ...projectScopes,
-    authType: 'pat',
-    token,
+    ...auth,
     apiVersion,
     timeoutMs,
   };
+}
+
+export function isValidToken(token: string): boolean {
+  return token.length > 0 && !/[\u0000-\u0020\u007f]/u.test(token);
+}
+
+/** Credential store entry name; defaults to one entry per server and collection. */
+export function credentialTarget(
+  env: NodeJS.ProcessEnv,
+  serverUrl: string,
+  collection: string,
+): string {
+  const target = env.ADO_CREDENTIAL_TARGET?.trim();
+  if (!target) return defaultCredentialTarget(serverUrl, collection);
+  if (target.length > 256 || /[\u0000-\u001f\u007f]/u.test(target)) {
+    fail(
+      'ADO_CREDENTIAL_TARGET must be 1-256 characters without control characters.',
+    );
+  }
+  return target;
+}
+
+function loadAuth(
+  env: NodeJS.ProcessEnv,
+  serverUrl: string,
+  collection: string,
+  dependencies: ConfigDependencies,
+): AuthSettings {
+  const authType = env.ADO_AUTH_TYPE?.trim() || 'pat';
+  if (authType !== 'pat') fail('ADO_AUTH_TYPE must be pat.');
+  const tokenSource = env.ADO_TOKEN_SOURCE?.trim() || 'env';
+  const token = env.ADO_TOKEN?.trim();
+  if (tokenSource === 'credential-manager') {
+    if (token) {
+      fail(
+        'Set either ADO_TOKEN or ADO_TOKEN_SOURCE=credential-manager, not both.',
+      );
+    }
+    const store = (dependencies.credentialStore ?? systemCredentialStore)();
+    const stored = store.get(credentialTarget(env, serverUrl, collection));
+    if (!stored || !isValidToken(stored)) {
+      fail(
+        'No valid PAT is stored in the OS credential store for this server and collection. Run `azure-devops-server-mcp auth set-token` with the same ADO_SERVER_URL, ADO_COLLECTION and ADO_CREDENTIAL_TARGET.',
+      );
+    }
+    return { authType, tokenSource, token: stored };
+  }
+  if (tokenSource !== 'env') {
+    fail('ADO_TOKEN_SOURCE must be env or credential-manager.');
+  }
+  if (!token || !isValidToken(token)) {
+    fail(
+      'ADO_TOKEN is required and must not contain whitespace or control characters.',
+    );
+  }
+  return { authType, tokenSource, token };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../../src/config.js';
+import type { CredentialStore } from '../../src/ado/credential-store.js';
 import { PatAuthProvider, createSecretRedactor } from '../../src/ado/auth.js';
 
 const env = {
@@ -14,6 +15,7 @@ describe('configuration and authentication', () => {
       serverUrl: 'https://devops.example.test/tfs',
       collection: 'Default Collection',
       authType: 'pat',
+      tokenSource: 'env',
       token: 'a-test-secret',
       apiVersion: '7.0',
       timeoutMs: 30000,
@@ -45,6 +47,7 @@ describe('configuration and authentication', () => {
     ['ADO_TOKEN', ''],
     ['ADO_TOKEN', 'bad\r\ntoken'],
     ['ADO_AUTH_TYPE', 'ntlm'],
+    ['ADO_TOKEN_SOURCE', 'file'],
     ['ADO_API_VERSION', '8.0'],
     ['ADO_TIMEOUT_MS', '0'],
     ['ADO_TIMEOUT_MS', 'Infinity'],
@@ -120,5 +123,95 @@ describe('configuration and authentication', () => {
       expect(redact(value)).toContain('[REDACTED]');
       expect(redact(value)).not.toContain(secret);
     }
+  });
+});
+
+describe('OS credential store token source', () => {
+  const storeEnv = {
+    ADO_SERVER_URL: 'https://devops.example.test/tfs/',
+    ADO_COLLECTION: 'DefaultCollection',
+    ADO_TOKEN_SOURCE: 'credential-manager',
+  };
+  function fakeStore(entries: Record<string, string> = {}) {
+    const lookups: string[] = [];
+    const store: CredentialStore = {
+      get: (target) => {
+        lookups.push(target);
+        return entries[target];
+      },
+      set: () => {},
+      delete: () => false,
+    };
+    return { lookups, credentialStore: () => store };
+  }
+
+  it('reads the PAT from a per-server, per-collection entry', () => {
+    const { lookups, credentialStore } = fakeStore({
+      'azure-devops-server-mcp:https://devops.example.test/tfs/DefaultCollection':
+        'stored-secret',
+    });
+    expect(loadConfig(storeEnv, { credentialStore })).toMatchObject({
+      authType: 'pat',
+      tokenSource: 'credential-manager',
+      token: 'stored-secret',
+    });
+    expect(lookups).toEqual([
+      'azure-devops-server-mcp:https://devops.example.test/tfs/DefaultCollection',
+    ]);
+  });
+
+  it('honours an explicit target name', () => {
+    const { credentialStore } = fakeStore({ 'team-ado': 'stored-secret' });
+    expect(
+      loadConfig(
+        { ...storeEnv, ADO_CREDENTIAL_TARGET: ' team-ado ' },
+        { credentialStore },
+      ).token,
+    ).toBe('stored-secret');
+  });
+
+  it('never opens the store for the default env source', () => {
+    const credentialStore = () => {
+      throw new Error('store opened');
+    };
+    expect(loadConfig(env, { credentialStore }).tokenSource).toBe('env');
+  });
+
+  it('rejects ADO_TOKEN alongside the credential store', () => {
+    const { credentialStore } = fakeStore({});
+    expect(() =>
+      loadConfig({ ...storeEnv, ADO_TOKEN: 'also-set' }, { credentialStore }),
+    ).toThrow('not both');
+  });
+
+  it.each([
+    ['missing', {}],
+    [
+      'invalid',
+      {
+        'azure-devops-server-mcp:https://devops.example.test/tfs/DefaultCollection':
+          'has whitespace',
+      },
+    ],
+  ])('rejects a %s stored PAT without echoing it', (_, entries) => {
+    const { credentialStore } = fakeStore(entries);
+    expect(() => loadConfig(storeEnv, { credentialStore })).toThrow(
+      'auth set-token',
+    );
+    try {
+      loadConfig(storeEnv, { credentialStore });
+    } catch (error) {
+      expect(String(error)).not.toContain('has whitespace');
+    }
+  });
+
+  it('rejects target names with control characters', () => {
+    const { credentialStore } = fakeStore({});
+    expect(() =>
+      loadConfig(
+        { ...storeEnv, ADO_CREDENTIAL_TARGET: `bad${String.fromCharCode(7)}` },
+        { credentialStore },
+      ),
+    ).toThrow('ADO_CREDENTIAL_TARGET');
   });
 });
