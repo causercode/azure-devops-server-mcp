@@ -1,0 +1,47 @@
+{
+  "name": "azure-devops-server-mcp",
+  "version": "0.1.0",
+  "description": "MCP server connecting AI coding agents to self-hosted Azure DevOps Server repositories, branches, and pull requests.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "bin": {
+    "azure-devops-server-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CONTRIBUTING.md",
+    "docs",
+    "LICENSE",
+    "SECURITY.md",
+    ".env.example"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && vitest run",
+    "test:watch": "npm run build && vitest",
+    "test:live": "npm run build && node --env-file-if-exists=.env scripts/live-acceptance.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run format:check && npm run typecheck && npm test",
+    "start": "node dist/index.js",
+    "dev": "node --env-file-if-exists=.env --import tsx src/index.ts",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.0",
+    "@types/node": "^24.19.1",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

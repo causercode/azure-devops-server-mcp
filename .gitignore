@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+*.tgz
+.DS_Store
+Thumbs.db
+live-acceptance.local.json
+# Local connection reports and client configuration may contain internal data.
+*.local.json
+*.local.toml
+*.local.pem
+.mcp.json
+ado-configuration.json
+# Personal planning belongs in a separate local checkout.
+/planning/
+/private-planning/
