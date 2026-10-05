@@ -128,7 +128,7 @@ Run the core prompt from each MCP client you plan to claim as supported. Protoco
 The automated runner uses `ADO_TOKEN`. Check the other modes with the read-only connection check; neither has a recorded live run yet.
 
 - **Credential store PAT.** Run `node .\dist\index.js auth set-token` with the lab's `ADO_SERVER_URL`/`ADO_COLLECTION`, remove `ADO_TOKEN`, set `ADO_TOKEN_SOURCE=credential-manager`, and run `scripts/check-connection.mjs`. Confirm `auth status` reports the entry, `auth clear-token` removes it, and startup then fails with a hint to run `auth set-token`. A workgroup lab can run this check.
-- **Kerberos (`ADO_AUTH_TYPE=negotiate`).** Requires a domain-joined client and a server with a registered HTTP SPN; a workgroup lab can only confirm the NTLM refusal (`NEGOTIATE_NTLM_UNSUPPORTED`, no request sent). Follow the read-only [workplace Kerberos validation](kerberos-validation.md) against a real server.
+- **Kerberos (`ADO_AUTH_TYPE=negotiate`).** Requires a domain-joined client and a server with a registered HTTP SPN; a workgroup lab can only confirm the NTLM refusal (`NEGOTIATE_NTLM_UNSUPPORTED`, no request sent). Follow the read-only [Kerberos validation guide](kerberos-validation.md) against a real server.
 
 ## Record evidence
 

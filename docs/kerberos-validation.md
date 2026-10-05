@@ -1,8 +1,8 @@
-# Validating Kerberos (`ADO_AUTH_TYPE=negotiate`) on a workplace computer
+# Validating Kerberos (`ADO_AUTH_TYPE=negotiate`) against a live server
 
-> **This runs against a real, shared Azure DevOps Server under your own full identity.** Kerberos has no PAT scopes, so the process can do anything your account can. Keep this to the few **read-only** steps below. Run each step once. If a step fails, stop, record the error code, and do not retry in a loop. Do not create PRs, work items, comments or builds, and do not run `npm run test:live` or any `scripts/live-*.mjs` runner (they are for the loopback lab and refuse other servers). Follow your organization's rules for running scripts against internal systems.
+> **This runs against a real Azure DevOps Server under your full identity.** Kerberos has no PAT scopes, so the process can do anything your account can. Keep this to the few **read-only** steps below. Run each step once. If a step fails, stop, record the error code, and do not retry in a loop. Do not create PRs, work items, comments or builds, and do not run `npm run test:live` or any `scripts/live-*.mjs` runner (they are for the loopback lab and refuse other servers). Follow your organization's rules for running scripts against internal systems.
 
-Home-lab status: the credential-store PAT passed the connection check and a client `server_info` call. Kerberos could only be checked for its failure path there: the workgroup lab offered NTLM, which was refused with `NEGOTIATE_NTLM_UNSUPPORTED` before any request was sent. A successful Kerberos sign-in is still unverified.
+A workgroup (non-domain) lab can only confirm the failure path: Windows offers NTLM, which is refused with `NEGOTIATE_NTLM_UNSUPPORTED` before any request is sent. A successful sign-in needs a domain-joined client and a server with Kerberos configured.
 
 ## 0. Prerequisites (no traffic to Azure DevOps)
 
@@ -14,12 +14,11 @@ node --version       # 22.12+
 
 If `whoami /upn` fails or `klist` has no `krbtgt` ticket, this machine cannot use Kerberos. Stop here.
 
-## 1. Get the branch and build
+## 1. Build from source
 
 ```powershell
-git clone https://github.com/causercode/azure-devops-server-mcp.git   # or: git fetch, in an existing clone
+git clone https://github.com/causercode/azure-devops-server-mcp.git
 cd azure-devops-server-mcp
-git checkout feature/auth-hardening
 npm ci
 npm run build
 node -e "require('kerberos'); console.log('kerberos binding OK')"
@@ -38,18 +37,18 @@ klist get HTTP/devops.example.com
 - **Ticket returned:** the default SPN will work. Continue.
 - **Error such as `0x7` (`KDC_ERR_S_PRINCIPAL_UNKNOWN`):** no SPN is registered for that name; the URL is probably an alias (DNS CNAME or load balancer). Try the server's real FQDN, if you know it, with `klist get HTTP/<real-host>`. If that works, set `ADO_KERBEROS_SPN=HTTP/<real-host>` in step 3. If nothing works, Kerberos is not configured for this server. Stop and use the PAT.
 
-## 3. Create a Kerberos env file from your work configuration
+## 3. Create a Kerberos env file
 
-Start from your existing `.env.work.local` (see [workplace quickstart](workplace-quickstart.md)). Remove the PAT, switch the auth type, and keep exactly **one** approved repository in the allowlist:
+Start from an existing PAT env file, such as the `.env.work.local` from the [workplace quickstart](workplace-quickstart.md). Remove the PAT, switch the auth type, and keep exactly **one** approved repository in the allowlist:
 
 ```powershell
 Get-Content .env.work.local |
   Where-Object { $_ -notmatch '^ADO_(TOKEN|TOKEN_SOURCE|AUTH_TYPE)=' } |
-  Set-Content .env.work-kerberos.local
-Add-Content .env.work-kerberos.local 'ADO_AUTH_TYPE=negotiate'
+  Set-Content .env.kerberos.local
+Add-Content .env.kerberos.local 'ADO_AUTH_TYPE=negotiate'
 # Only if step 2 needed a different host:
-# Add-Content .env.work-kerberos.local 'ADO_KERBEROS_SPN=HTTP/real-host.corp.example'
-notepad .env.work-kerberos.local
+# Add-Content .env.kerberos.local 'ADO_KERBEROS_SPN=HTTP/real-host.corp.example'
+notepad .env.kerberos.local
 ```
 
 In the editor, confirm `ADO_ALLOWED_REPOSITORIES` lists a single repository you are allowed to read. Make sure `ADO_WORK_ITEM_WRITE_PROJECTS`, `ADO_BUILD_WRITE_REPOSITORIES` and `ADO_BUILD_WRITE_DEFINITIONS` are **absent**. In a fresh terminal, clear any inherited values: `Remove-Item Env:ADO_* -ErrorAction SilentlyContinue`.
@@ -57,7 +56,7 @@ In the editor, confirm `ADO_ALLOWED_REPOSITORIES` lists a single repository you 
 ## 4. Run the read-only connection check once
 
 ```powershell
-node --env-file=.env.work-kerberos.local .\scripts\check-connection.mjs
+node --env-file=.env.kerberos.local .\scripts\check-connection.mjs
 ```
 
 This makes about five GET requests: diagnostics, one project page, the allowed repository, one branch page and one PR page. It never writes.
@@ -80,15 +79,15 @@ klist | Select-String 'HTTP/'
 
 ## 5. Optional: one read-only prompt in a coding client
 
-Only after step 4 passes. Register a **separate**, read-only entry pointing at this checkout. For Codex, use the README's `enabled_tools` read-only filter. Claude Code has no per-tool filter, so rely on the single-repository allowlist and the absent write lists, and decline any write tool call. Ask exactly one question:
+Only after step 4 passes. Register a **separate** entry pointing at this checkout and restrict it to read tools with your client's tool filter or permission rules (the README shows Codex's `enabled_tools` filter). Decline any write tool call. Ask exactly one question:
 
 > Use the Azure DevOps Server MCP to check connectivity and list the branches of my repository. Do not make changes.
 
 `server_info` must report `authType: "negotiate"`. Remove the test registration afterwards.
 
-## 6. Clean up and report back
+## 6. Clean up and record results
 
-Delete `.env.work-kerberos.local` if you won't keep using it; it contains no secret. Report anonymized results only, with no hostnames, SPNs or repository names:
+Delete `.env.kerberos.local` if you won't keep using it; it contains no secret. Share anonymized results only, with no hostnames, SPNs, account or repository names:
 
 ```text
 Date / Windows version / Node version:
