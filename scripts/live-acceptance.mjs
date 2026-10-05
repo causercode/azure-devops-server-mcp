@@ -67,8 +67,8 @@ async function call(name, args, expectError = false) {
 
 try {
   await client.connect(transport);
-  assert.equal((await client.listTools()).tools.length, 5);
-  checks.push('five tools advertised');
+  assert.equal((await client.listTools()).tools.length, 14);
+  checks.push('Phase 2 tools advertised; v0.1 regression workflow');
   const diagnostics = await call('server_info', {});
   assert.equal(diagnostics.connected, true);
   const projects = await call('server_info', {

@@ -25,6 +25,7 @@ export interface RecordedRequest {
   url: URL;
   authorization: string | undefined;
   body: Record<string, unknown> | undefined;
+  contentType?: string | undefined;
 }
 
 export class MockAdoServer {
@@ -40,6 +41,10 @@ export class MockAdoServer {
   writeStatus = 201;
   readonly #server: Server;
   baseUrl = '';
+  phase2Handler?: (
+    entry: RecordedRequest,
+    send: (status: number, data?: unknown) => void,
+  ) => boolean;
 
   constructor() {
     this.#server = createServer(async (request, response) => {
@@ -51,6 +56,7 @@ export class MockAdoServer {
         url: new URL(request.url ?? '/', this.baseUrl),
         authorization: request.headers.authorization,
         body: text ? JSON.parse(text) : undefined,
+        contentType: request.headers['content-type'],
       };
       this.requests.push(entry);
       response.setHeader('content-type', 'application/json');
@@ -65,12 +71,17 @@ export class MockAdoServer {
         send(401, { message: 'Invalid auth' });
         return;
       }
-      if (entry.url.searchParams.get('api-version') !== '7.0') {
+      if (
+        !['7.0', '7.0-preview.3', '7.0-preview.1'].includes(
+          entry.url.searchParams.get('api-version') ?? '',
+        )
+      ) {
         send(400, { message: 'Unsupported version' });
         return;
       }
       const base = '/tfs/DefaultCollection';
       const path = decodeURIComponent(entry.url.pathname);
+      if (this.phase2Handler?.(entry, send)) return;
       if (path === `${base}/_apis/projects`) {
         if (this.projectDelayMs)
           await new Promise((resolve) =>

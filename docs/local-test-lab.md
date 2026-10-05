@@ -39,8 +39,8 @@ Set these process environment variables, replacing the URL/collection with the a
 ```dotenv
 ADO_SERVER_URL=http://localhost:8080/tfs
 ADO_COLLECTION=DefaultCollection
-ADO_PROJECT=McpTest
-ADO_ALLOWED_REPOSITORIES='[{"project":"McpTest","repository":"mcp-acceptance"}]'
+ADO_PROJECT=TestProject
+ADO_ALLOWED_REPOSITORIES='[{"project":"TestProject","repository":"test-repository"}]'
 ADO_AUTH_TYPE=pat
 ADO_TOKEN=your-local-lab-PAT
 ADO_API_VERSION=7.0
@@ -51,3 +51,5 @@ The URL above is an example, not a promised installer default. Local HTTP avoids
 Start with `7.0` to exercise the v0.1 default. Server 2022.2 can also use `7.1`; [Microsoft’s version mapping](https://learn.microsoft.com/en-us/rest/api/azure/devops/) says newer server releases support APIs from earlier mapped releases. Repeat with `7.1` if you want to validate both versions.
 
 Build and register the stdio server following [README.md](../README.md), then run the [live acceptance checklist](live-acceptance.md). That gives us independent evidence of repository discovery, branch checks, PR creation, metadata updates, and a usable PR URL without connecting to a workplace server.
+
+For v0.2, use an independent env file rather than changing an active registration. Add Work Items (Read & write) and Identity (Read) to a separate lab PAT, and configure both work-item project lists. Use unique `phase2-mcp-` resources and private reports. A second disposable project permits cross-project rejection checks without account ACL changes. The [Phase 2 guide](phase-2.md) describes permissions; the [acceptance runner](live-acceptance.md#repeat-phase-2-acceptance) leaves resources inspectable. Do not restart shared services or delete peer test resources during parallel work.
