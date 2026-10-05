@@ -29,7 +29,7 @@ Document any live validation using the template in [docs/live-acceptance.md](doc
 
 Before a source commit, pass `npm run check` and review the Git contents. Local env files, workplace inventories, private client configurations, and live reports must stay out of Git. Use the [workplace quickstart](docs/workplace-quickstart.md) for a read-only first trial. The home lab's PAT and configuration are not transferable to a workplace server.
 
-Before making the GitHub repository public, enable private vulnerability reporting and add the actual repository URLs to package metadata. Keep compatibility claims limited to recorded evidence; the initial source may be shared as a v0.1 candidate while coding-client acceptance remains pending.
+Before publishing source code to a public GitHub repository, enable private vulnerability reporting and add the actual repository URLs to package metadata. Keep compatibility claims limited to recorded evidence; the initial source may be shared as a v0.1 candidate while additional coding-client acceptance remains pending.
 
 Before tagging a v0.1 release, complete live acceptance on the primary target including the actual coding-client prompt. Before publishing to npm, also inspect `npm pack --dry-run`, smoke-test the packed runtime, and confirm package name/ownership on npm. Update `package.json` and the compatibility/status documentation. `npm pack`/`npm publish` builds the production package through `prepack`; publication and tagging are maintainer actions.
 

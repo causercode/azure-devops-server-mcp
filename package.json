@@ -2,6 +2,14 @@
   "name": "azure-devops-server-mcp",
   "version": "0.1.0",
   "description": "MCP server connecting AI coding agents to self-hosted Azure DevOps Server repositories, branches, and pull requests.",
+  "homepage": "https://github.com/causercode/azure-devops-server-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/causercode/azure-devops-server-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/causercode/azure-devops-server-mcp/issues"
+  },
   "license": "MIT",
   "type": "module",
   "engines": {

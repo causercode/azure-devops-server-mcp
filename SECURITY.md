@@ -4,7 +4,7 @@ v0.1 is the initial development line. No released version currently has a verifi
 
 ## Report a vulnerability
 
-Use the repository hosting service’s private vulnerability reporting facility. Maintainers must enable that facility before making the GitHub repository public. If private reporting is unavailable, open an issue asking for a private contact channel without describing the vulnerability. Do not include a real PAT, private source code, internal server details, or vulnerability details in a public issue.
+Use [GitHub's private vulnerability reporting form](https://github.com/causercode/azure-devops-server-mcp/security/advisories/new). Maintainers must enable that facility before publishing source code to the public repository. If private reporting is unavailable, open an issue asking for a private contact channel without describing the vulnerability. Do not include a real PAT, private source code, internal server details, or vulnerability details in a public issue.
 
 ## Credential and access model
 
