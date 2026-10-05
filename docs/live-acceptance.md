@@ -1,4 +1,49 @@
-# v0.1 live acceptance: From MCP to Pull Request
+# Live acceptance: PR review and work items
+
+## v0.2 recorded run
+
+On 2026-10-04, the compiled CLI and real MCP SDK stdio client passed **12 Phase 2 acceptance groups** against Azure DevOps Server Express 2022.2 Patch 12 / build `19.235.37529.3`, REST `7.0`, Windows / Node `24.21.0`. Independent process configuration and a separate feature-scoped PAT were used. This verifies actual returned server state, not an interactive Phase 2 agent workflow.
+
+| Area            | Verified behavior                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prerequisites   | 14 tools; read-only connectivity, scoped repository/branches, explicit person identity, WIT type/field metadata, saved query discovery before writes                |
+| PR regression   | Unique draft PR creation; update/read title, clear description; original repository boundary preserved                                                              |
+| Code review     | Changed-file iteration metadata and source/common/base commits; bounded pinned text and additional line ranges                                                      |
+| Discussion      | Create/reply/read/comment paging/resolve/reopen; returned active state verified                                                                                     |
+| Reviewers       | Explicit active person resolution; add/read/remove; no approval vote; empty DELETE handled                                                                          |
+| Work items      | Create/read/batch/update fields, clear description; stale revision and protected-project changes rejected                                                           |
+| Comments        | Add/read using `7.0-preview.3`; actual continuation token/page verified                                                                                             |
+| Queries         | Bounded guarded WIQL; actual saved flat query execution with multi-field projection normalized to ID references and excluded-project guard                          |
+| Links           | Related/parent/child/PR links, duplicate detection, reciprocal parent inspection and PR-linked items                                                                |
+| Scope negatives | Excluded repository discussion/link writes rejected; cross-project ID/batch/link reads/writes rejected despite direct PAT access to the disposable excluded fixture |
+
+The successful report and earlier interrupted attempts are ignored local JSON. Unique branches, draft PRs, work items and a saved query remain inspectable. A disposable second project provided cross-project proof. No credentials, local names, URLs or identifying IDs appear here. The original env file/active registration were unchanged. No completion or cleanup ran.
+
+Live checks exposed details now covered offline: IMS person responses may omit false `isContainer` (positive `SchemaClassName=User` is required instead), and relation URLs are canonicalized with a project GUID. The harness stopped on failure, inspected state, and used a fresh PR branch for rerun; it did not blindly retry uncertain mutations.
+
+Offline coverage includes real HTTP/MCP and CLI stdio tests of default-deny scope, configured aliases, cross-project IDs, incomplete/mixed batches, WIQL OR escapes, query/link targets, identity ambiguity/group/inactive results, reviewer vote preservation, revision races, action contracts, pagination/text bounds, safe errors, resource-specific recovery and no retries. Packaging/build/audit results and GitHub CI are recorded in the PR. REST 7.1, older servers, interactive Phase 2 Codex/Claude workflows and larger real multi-page change inventories remain unverified.
+
+### Repeat Phase 2 acceptance
+
+Build first, then run from a source checkout with an independent env file and **loopback** disposable lab:
+
+```sh
+npm run build
+node --env-file=/absolute/path/to/local-phase2.env scripts/live-acceptance-phase2.mjs
+```
+
+`npm run test:live:phase2` loads the source `.env` when present. Prefer an explicit independent path when a normal registration uses another file. Configure [feature permissions](phase-2.md) and:
+
+- `ADO_PROJECT`, `ADO_TEST_REPOSITORY`, fresh `ADO_TEST_SOURCE_BRANCH` starting with `phase2-mcp-`, `ADO_TEST_TARGET_BRANCH` (default `develop`). Push a text-file change first. Existing active PRs for that branch pair are rejected.
+- `ADO_TEST_REVIEWER_ID`: verified disposable active person who is not already a reviewer. Acceptance adds then removes them.
+- `ADO_TEST_WORK_ITEM_TYPE`: existing type accepting title-only creation (default `Task`). Process-specific requirements may need another fixture.
+- Optional `ADO_TEST_QUERY_ID`: disposable flat saved query returning newly created acceptance items, using the supported grammar. Setup is outside MCP.
+- Optional `ADO_TEST_UNLISTED_REPOSITORY`, `ADO_TEST_UNLISTED_WORK_ITEM_ID`: disposable excluded targets the PAT can read directly, for independent boundary proof.
+- `ADO_PHASE2_REPORT`: private path (default ignored `phase2-acceptance.local.json`). Reports contain resource IDs/URLs. Each created resource is recorded before continuing.
+
+This runner creates real PRs/discussions/reviewers/tickets/comments/links and leaves them inspectable. After failure, inspect report/current state and use a fresh branch; it does not resume/retry writes. Remote hosts are rejected before creation. CI runs the same harness against a stateful loopback fixture without credentials. Interactive client acceptance is a separate maintainer check.
+
+## Historical v0.1: From MCP to Pull Request
 
 **Current result: automated live stdio acceptance passed on 2026-10-04; the maintainer also reported successful Codex workflow testing on the same lab.** The compiled server and real MCP TypeScript SDK client completed all nine automated checks. Claude Code and other individual coding-client workflows remain unverified.
 

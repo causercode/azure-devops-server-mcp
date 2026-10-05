@@ -1,7 +1,7 @@
 {
   "name": "azure-devops-server-mcp",
-  "version": "0.1.0",
-  "description": "MCP server connecting AI coding agents to self-hosted Azure DevOps Server repositories, branches, and pull requests.",
+  "version": "0.2.0",
+  "description": "MCP server for self-hosted Azure DevOps Server repositories, pull request review, and scoped work items.",
   "homepage": "https://github.com/causercode/azure-devops-server-mcp#readme",
   "repository": {
     "type": "git",
@@ -33,6 +33,7 @@
     "test": "npm run build && vitest run",
     "test:watch": "npm run build && vitest",
     "test:live": "npm run build && node --env-file-if-exists=.env scripts/live-acceptance.mjs",
+    "test:live:phase2": "npm run build && node --env-file-if-exists=.env scripts/live-acceptance-phase2.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run format:check && npm run typecheck && npm test",

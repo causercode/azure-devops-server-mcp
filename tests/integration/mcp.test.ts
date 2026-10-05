@@ -77,19 +77,28 @@ describe('MCP to Azure DevOps HTTP integration', () => {
     title: 'Improve search caching',
   };
 
-  it('advertises exactly the five MVP tools with read/write annotations and strict inputs', async () => {
+  it('advertises the Phase 2 tools with read/write annotations and strict inputs', async () => {
     const result = await client.listTools();
     expect(result.tools.map((tool) => tool.name).sort()).toEqual([
+      'core_identity',
       'repo_branch',
+      'repo_file',
       'repo_pull_request',
+      'repo_pull_request_thread',
+      'repo_pull_request_thread_write',
       'repo_pull_request_write',
       'repo_repository',
       'server_info',
+      'wit_query',
+      'wit_work_item',
+      'wit_work_item_comment_write',
+      'wit_work_item_link_write',
+      'wit_work_item_write',
     ]);
     for (const tool of result.tools) {
       expect(tool.inputSchema.additionalProperties).toBe(false);
       expect(tool.annotations?.readOnlyHint).toBe(
-        tool.name !== 'repo_pull_request_write',
+        !tool.name.endsWith('_write'),
       );
     }
   });

@@ -52,6 +52,10 @@ export const pullRequestIdInput = z
   .positive()
   .max(2147483647)
   .describe('Numeric Azure DevOps pull request ID.');
+export const guidInput = z
+  .string()
+  .regex(/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/iu)
+  .describe('Explicit Azure DevOps identity/resource GUID.');
 
 export const readAnnotations = {
   readOnlyHint: true,
@@ -124,4 +128,16 @@ export function rejectFields(
       `This action does not accept: ${fields.join(', ')}.`,
     );
   }
+}
+
+/** Optional schema fields are accepted only by their documented action. */
+export function allowFields(
+  input: Record<string, unknown>,
+  fields: readonly string[],
+): void {
+  const allowed = new Set(['action', 'project', ...fields]);
+  rejectFields(
+    input,
+    Object.keys(input).filter((key) => !allowed.has(key)),
+  );
 }

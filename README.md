@@ -1,14 +1,14 @@
 # azure-devops-server-mcp
 
-Connect MCP-compatible AI coding agents to **self-hosted Azure DevOps Server Git repositories and pull requests**.
+Connect MCP-compatible AI coding agents to **self-hosted Azure DevOps Server repositories, pull request review, and work items**.
 
-The v0.1 milestone is **From MCP to Pull Request**:
+The original **From MCP to Pull Request** workflow remains available:
 
 > “Create a pull request from my current feature branch into develop.”
 
 The agent reads its local Git context, finds the Azure DevOps project and repository, and calls this server. The server resolves the repository, verifies both remote branches, creates the PR, and returns its number and browser URL.
 
-**Status:** v0.1 implementation with automated unit, HTTP integration, and stdio protocol tests. The [live stdio acceptance check](docs/live-acceptance.md) passed against Azure DevOps Server Express 2022.2 Patch 12 using REST 7.0, including PR creation/updates and repository access restrictions. The maintainer also reported successful Codex workflow testing on this lab; Claude Code and other client workflows remain unverified. This package has not been published to npm. Independently implemented; not affiliated with Microsoft.
+**Status:** v0.2 adds PR changed-file review, pinned text reads, discussions, reviewers, and independently authorized work items/queries/comments/links. [Live stdio acceptance](docs/live-acceptance.md) passed against Azure DevOps Server Express 2022.2 Patch 12 / REST 7.0. PR review works without enabling work items. The maintainer confirmed the original v0.1 Codex workflow; interactive Phase 2 workflows, Claude Code, REST 7.1 and other servers remain unverified. This package has not been published to npm. Independently implemented; not affiliated with Microsoft.
 
 ## Requirements and compatibility
 
@@ -23,7 +23,7 @@ The agent reads its local Git context, finds the Azure DevOps project and reposi
 | 2020                            | `6.0`                              | Experimental; untested against a live server                             |
 | 2019                            | `5.0`                              | Configurable; not yet tested or supported                                |
 
-Version mappings follow [Microsoft’s REST API compatibility table](https://learn.microsoft.com/en-us/rest/api/azure/devops/). Selecting a version does not prove compatibility. There is no automatic negotiation or fallback. Azure DevOps Services (cloud), TFVC, and Windows/NTLM/Kerberos authentication are outside the v0.1 target.
+Version mappings follow [Microsoft’s REST API compatibility table](https://learn.microsoft.com/en-us/rest/api/azure/devops/). Selecting a version does not prove compatibility. There is no automatic negotiation or fallback. New Phase 2 endpoints require `7.0` or `7.1`; selecting `6.0`/`5.0` retains only the original v0.1 capabilities. Azure DevOps Services (cloud), TFVC, and Windows/NTLM/Kerberos MCP authentication are outside this target. Preview versions for comments and identity lookup are selected centrally; see [Phase 2 contracts](docs/phase-2.md).
 
 ## Build and configure
 
@@ -51,16 +51,18 @@ ADO_TOKEN=your-personal-access-token
 
 `ADO_SERVER_URL` is the server root, including any virtual directory such as `/tfs`, **without** the collection or project. The collection is appended separately and may contain spaces. Installations hosted directly at a hostname can use `https://devops.example.com`. Trailing slashes are accepted. URLs containing credentials, query parameters, or fragments are rejected.
 
-| Variable                   | Required            | Default / meaning                                                              |
-| -------------------------- | ------------------- | ------------------------------------------------------------------------------ |
-| `ADO_SERVER_URL`           | Yes                 | Server root and optional virtual directory                                     |
-| `ADO_COLLECTION`           | Yes                 | Collection name                                                                |
-| `ADO_TOKEN`                | Yes                 | PAT owned by the MCP process                                                   |
-| `ADO_AUTH_TYPE`            | No                  | `pat`; the only v0.1 implementation                                            |
-| `ADO_PROJECT`              | No                  | Default project; tool calls may override it                                    |
-| `ADO_ALLOWED_REPOSITORIES` | Required for writes | JSON array of `{project, repository}` entries; restricts all repository access |
-| `ADO_API_VERSION`          | No                  | `7.0`; accepts `7.1`, `6.0`, or `5.0`                                          |
-| `ADO_TIMEOUT_MS`           | No                  | `30000` per HTTP request; range `100`–`120000`                                 |
+| Variable                         | Required                      | Default / meaning                                                              |
+| -------------------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
+| `ADO_SERVER_URL`                 | Yes                           | Server root and optional virtual directory                                     |
+| `ADO_COLLECTION`                 | Yes                           | Collection name                                                                |
+| `ADO_TOKEN`                      | Yes                           | PAT owned by the MCP process                                                   |
+| `ADO_AUTH_TYPE`                  | No                            | `pat`; the only implementation                                                 |
+| `ADO_PROJECT`                    | No                            | Default project; tool calls may override it                                    |
+| `ADO_ALLOWED_REPOSITORIES`       | Required for writes           | JSON array of `{project, repository}` entries; restricts all repository access |
+| `ADO_ALLOWED_WORK_ITEM_PROJECTS` | Required for work-item reads  | JSON array of project names/GUIDs; omitted or `[]` denies work-item access     |
+| `ADO_WORK_ITEM_WRITE_PROJECTS`   | Required for work-item writes | JSON array of projects also in the read list; omitted or `[]` disables writes  |
+| `ADO_API_VERSION`                | No                            | `7.0`; accepts `7.1`, `6.0`, or `5.0`                                          |
+| `ADO_TIMEOUT_MS`                 | No                            | `30000` per HTTP request; range `100`–`120000`                                 |
 
 Use the **Code (Read & write)** PAT scope to create or edit PRs, plus **Project and Team (Read)** for project discovery and connectivity diagnostics. For a read-only installation, use **Code (Read)** instead. Server administrators may restrict PAT availability; PAT scopes do not grant repository permissions that the identity lacks. See [PAT documentation](https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate?view=azure-devops) and [PR API scopes](https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-requests/create?view=azure-devops-rest-7.1).
 
@@ -72,6 +74,8 @@ node --env-file=/absolute/path/to/.env /absolute/path/to/azure-devops-server-mcp
 
 Do not commit credentials or provide them in an agent prompt.
 
+Work-item reads need **Work Items (Read)**; fields, comments and links need **Work Items (Read & write)**. Reviewer person lookup needs **Identity (Read)**. Configure only the features you use; Code access and repository permission do not grant work-item permission. PAT scopes supplement the identity’s ADO permissions.
+
 ### Repository access
 
 **PR writes are disabled by default.** Each user must explicitly configure `ADO_ALLOWED_REPOSITORIES` before the MCP can create or edit a PR. A default project, broad PAT permissions, repository discovery, or an agent's choice of repository does not grant write access.
@@ -82,7 +86,20 @@ The allowlist is generic: entries select a project and repository by name or ID,
 ADO_ALLOWED_REPOSITORIES='[{"project":"SharedProject","repository":"MyApplication"},{"project":"SharedProject","repository":"MyLibrary"}]'
 ```
 
-When configured, it restricts **reads and writes** across repository, branch, and PR tools. Discovery queries only the configured repositories and shows only their projects. Supplying another project, repository ID, or PR ID cannot override the restriction. The server checks a PR's repository before editing it. Scope is configured by the person launching the process; tools cannot change it.
+When configured, it restricts **reads and writes** across repository, branch, file, identity-context and PR tools, including discussions and reviewers. Discovery queries only the configured repositories and shows only their projects. Supplying another project, repository ID, or PR ID cannot override the restriction. The server checks a PR's repository before new review operations. Scope is configured by the person launching the process; tools cannot change it.
+
+### Independent work-item access
+
+Work-item reads and writes default to deny-all. Enable only approved projects in the MCP process:
+
+```dotenv
+ADO_ALLOWED_WORK_ITEM_PROJECTS='["MyProject"]'
+ADO_WORK_ITEM_WRITE_PROJECTS='["MyProject"]'
+```
+
+Prefer project GUIDs for stable identity. Writes require the selected project to resolve in **both** lists. `ADO_PROJECT`, repository permissions and broad PAT scopes do not grant this access. Work-item tools operate independently of Git access; repository discovery continues to show repository-approved projects only. Supply the approved work-item project explicitly or through `ADO_PROJECT`.
+
+ID-based reads, batches and query results verify each actual `System.TeamProject`; an unauthorized batch returns no partial data. Parent/child/related links require both tickets in the same authorized project. Linking to a PR additionally requires that PR’s repository write authorization in the same project. Link inspection exposes only authorized supported links. No arbitrary artifact URLs are accepted. See [examples and limits](docs/phase-2.md).
 
 Use project and repository **GUIDs** to pin identities across renames. Name entries authorize whatever repository currently has that name; deleting/recreating it can change its identity. Tool callers can use the current names or IDs of a repository resolved from an allowed entry. Matching is case-insensitive; wildcards and unknown configuration fields are rejected. A malformed allowlist stops startup. `[]` denies all repository access. Omission permits reads according to ADO permissions but still disables all PR writes.
 
@@ -186,13 +203,22 @@ Keep stdout dedicated to MCP. Startup errors go to stderr. Running `npm start` m
 
 ## Tools
 
-| Tool                      | Actions                | Purpose                                                |
-| ------------------------- | ---------------------- | ------------------------------------------------------ |
-| `repo_repository`         | `get`, `list`          | Inspect Git repositories in a project                  |
-| `repo_branch`             | `get`, `list`          | Inspect exact remote branches or list branch prefixes  |
-| `repo_pull_request`       | `get`, `list`          | Read PRs and filter by status/source/target branch     |
-| `repo_pull_request_write` | `create`, `update`     | Create PRs or edit title, description, and draft state |
-| `server_info`             | `get`, `list_projects` | Connectivity diagnostics and project discovery         |
+| Tool                             | Actions                                                                                   | Purpose                                                                      |
+| -------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `repo_repository`                | `get`, `list`                                                                             | Inspect Git repositories in a project                                        |
+| `repo_branch`                    | `get`, `list`                                                                             | Inspect exact remote branches or list branch prefixes                        |
+| `repo_pull_request`              | `get`, `list`, `get_changes`, `list_reviewers`, `get_work_items`                          | PR reads, changed files with pinned commits, votes and ticket links          |
+| `repo_pull_request_write`        | `create`, `update`, `update_reviewers`                                                    | PR metadata and explicit person reviewer add/remove                          |
+| `server_info`                    | `get`, `list_projects`                                                                    | Connectivity diagnostics and project discovery                               |
+| `repo_file`                      | `get_content`                                                                             | Bounded text content at an explicit commit                                   |
+| `core_identity`                  | `search`, `get`                                                                           | Active person candidates and explicit ID resolution in approved repo context |
+| `repo_pull_request_thread`       | `list`, `list_comments`                                                                   | Paged discussion reads                                                       |
+| `repo_pull_request_thread_write` | `create`, `reply`, `update_status`                                                        | Comment and resolve/reopen discussions                                       |
+| `wit_work_item`                  | `get`, `get_batch`, `get_type`, `list_types`, `list_fields`, `list_comments`, `get_links` | Project-checked tickets, metadata, comments and authorized links             |
+| `wit_work_item_write`            | `create`, `update`                                                                        | Explicit field changes; update requires revision                             |
+| `wit_work_item_comment_write`    | `add`                                                                                     | Comment as the PAT identity                                                  |
+| `wit_query`                      | `list`, `get`, `get_results`, `wiql`                                                      | Saved query discovery and bounded flat WIQL                                  |
+| `wit_work_item_link_write`       | `link`, `link_to_pull_request`                                                            | Revision-checked same-project work-item/PR links                             |
 
 Tool names are inspired by [Microsoft’s Azure DevOps MCP](https://github.com/microsoft/azure-devops-mcp); inputs and features are a deliberately smaller, independent contract, not a drop-in replacement.
 
@@ -234,6 +260,9 @@ List operations return `{ "items": [...] }` and accept `top` (default 25, maximu
 - Projects and branches: pass the returned `continuationToken` to the next call, preserving filters and page size. Stop when no token is returned. With an allowlist, project pagination uses only the projects resolved from allowed repositories.
 - Repositories: use `skip`/`nextSkip`. Without an allowlist, the REST endpoint returns the repository inventory; the service pages it locally. With an allowlist, only configured repositories are queried and then paged locally.
 - PRs: use `skip`/`nextSkip`. A full page indicates a possible next page; the final call may return an empty array.
+- PR changes: keep the returned `iterationId` and `compareTo` fixed; use `nextSkip` for the next page. `compareTo: 0` compares to the common ancestor. Results are changed-file metadata; use `repo_file/get_content` at `baseCommit` and `sourceCommit` for text review.
+- Threads, thread comments, metadata and saved-query discovery: `skip`/`nextSkip` pages bounded full REST inventories locally. Work-item comments use the server’s `continuationToken`. File reads use `nextStartLine`, up to 200 lines/32000 characters per result.
+- WIQL: at most 100 verified ID references; `possiblyMore` signals a full result page. Narrow WHERE or use an ID boundary for additional results. No offset/continuation is invented. Reviewer lists and work-item relation inspection cap at 100; inspect larger resources on the server.
 
 ### Local Git and write outcomes
 
@@ -241,11 +270,11 @@ The MCP server does not inspect the agent’s checkout, run Git, or push commits
 
 Branch lookups verify **exact** ref names, even though ADO’s refs API applies a prefix filter. PR creation rejects identical source/target branches and verifies both exist remotely. Branches may change between the checks and creation; the server remains authoritative.
 
-Writes are never automatically retried. A timeout, connection failure, or HTTP 5xx can leave the write outcome unknown. List PRs for the same source/target branches before retrying to avoid duplicates. Errors set `isError` and provide a safe `error.code` and message; raw REST error bodies are withheld.
+Writes are never automatically retried. A timeout, connection failure, or HTTP 5xx can leave the outcome unknown. Inspect the relevant PR, threads, reviewers, work item, comments or links before retrying. Work-item updates/links require the observed revision and a server `test /rev`; after a conflict, read current state and review the intended change. Errors set `isError` and provide a safe `error.code` and message; raw REST error bodies are withheld. Read-only WIQL/batch POSTs receive read error guidance.
 
 ## Security boundaries
 
-v0.1 exposes no repository/branch deletion, push, merge, PR completion, autocomplete, policy bypass, permissions, or administrative operations. PR update payloads use an explicit metadata allowlist. Input schemas reject unknown fields; read and write tools have MCP safety annotations. Client approval behavior is controlled by the client.
+v0.2 exposes no repository/branch deletion, push, merge, PR completion, autocomplete, approval votes, rule/policy bypass, permissions, pipelines, or administrative operations. Metadata/field/link writes use explicit contracts; arbitrary JSON Patch and artifact URLs are excluded. Reviewer assignment requires an explicit verified person GUID; searches do not choose ambiguous identities. Input schemas reject unknown/action-inappropriate fields; read and write tools have MCP safety annotations. Client approval behavior is controlled by the client.
 
 The PAT remains inside the MCP process. Tools do not return environment variables, auth headers, raw responses, or arbitrary exception messages. Known raw and encoded forms of the configured PAT are redacted from tool output as defence in depth. Remote project/repository names, PR titles, and descriptions remain **untrusted data**, not instructions.
 

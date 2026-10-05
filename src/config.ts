@@ -33,6 +33,8 @@ export interface Config {
   collection: string;
   project?: string;
   allowedRepositories?: readonly AllowedRepository[];
+  allowedWorkItemProjects?: readonly string[];
+  workItemWriteProjects?: readonly string[];
   authType: 'pat';
   token: string;
   apiVersion: ApiVersion;
@@ -72,7 +74,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     fail('ADO_COLLECTION is required and must be a single collection name.');
   }
   const authType = env.ADO_AUTH_TYPE?.trim() || 'pat';
-  if (authType !== 'pat') fail('ADO_AUTH_TYPE must be pat in v0.1.');
+  if (authType !== 'pat') fail('ADO_AUTH_TYPE must be pat.');
   const token = env.ADO_TOKEN?.trim();
   if (!token || /[\u0000-\u0020\u007f]/u.test(token)) {
     fail(
@@ -105,11 +107,30 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       );
     }
   }
+  const projectScopes: Partial<Config> = {};
+  for (const [variable, property] of [
+    ['ADO_ALLOWED_WORK_ITEM_PROJECTS', 'allowedWorkItemProjects'],
+    ['ADO_WORK_ITEM_WRITE_PROJECTS', 'workItemWriteProjects'],
+  ] as const) {
+    if (env[variable] !== undefined) {
+      try {
+        projectScopes[property] = z
+          .array(scopeIdentifier)
+          .max(100)
+          .parse(JSON.parse(env[variable]));
+      } catch {
+        fail(
+          `${variable} must be a JSON array of project names or IDs (no wildcards, maximum 100). Omitted or [] denies access.`,
+        );
+      }
+    }
+  }
   return {
     serverUrl: url.href.replace(/\/+$/u, ''),
     collection,
     ...(project ? { project } : {}),
     ...(allowedRepositories === undefined ? {} : { allowedRepositories }),
+    ...projectScopes,
     authType: 'pat',
     token,
     apiVersion,

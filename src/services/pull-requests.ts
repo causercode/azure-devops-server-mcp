@@ -59,6 +59,11 @@ export class PullRequestService {
       )
     ).data;
     this.verifyRepository(result, resolved);
+    if (result.pullRequestId !== pullRequestId)
+      throw new SafeError(
+        'INVALID_RESPONSE',
+        'The server returned a different pull request ID.',
+      );
     return result;
   }
 
@@ -166,6 +171,11 @@ export class PullRequestService {
       )
     ).data;
     this.verifyRepository(existing, resolved);
+    if (existing.pullRequestId !== input.pullRequestId)
+      throw new SafeError(
+        'INVALID_RESPONSE',
+        'The server returned a different pull request ID.',
+      );
     const result = (
       await this.client.request(
         [
@@ -178,6 +188,11 @@ export class PullRequestService {
       )
     ).data;
     this.verifyRepository(result, resolved, true);
+    if (result.pullRequestId !== input.pullRequestId)
+      throw new SafeError(
+        'INVALID_RESPONSE',
+        'The write response returned a different pull request ID. Inspect pull requests before retrying.',
+      );
     return result;
   }
 
